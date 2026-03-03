@@ -906,88 +906,94 @@ if pagina == "📊 Fase 4 - Indicadores":
         st.divider()
         st.subheader("⚙️ KPI OEE Logístico")
 
-        oee_data={}
+        oee_data = {}
 
         for fecha_str in fechas:
 
-            fecha_dt=datetime.strptime(fecha_str,"%Y-%m-%d")
+            fecha_dt = datetime.strptime(fecha_str,"%Y-%m-%d")
 
-            jornada_min=(
-                datetime.combine(fecha_dt,JORNADA_FIN)-
+            jornada_min = (
+                datetime.combine(fecha_dt,JORNADA_FIN) -
                 datetime.combine(fecha_dt,JORNADA_INICIO)
             ).total_seconds()/60
 
             for muelle in ["Muelle 1","Muelle 2","Contingencia"]:
 
-                citas=[
+                # ================= CITAS =================
+                citas = [
                     c for c in st.session_state.confirmadas
-                    if c["fecha"]==fecha_str and
-                    c["muelle"]==muelle
+                    if c["fecha"] == fecha_str and
+                    c["muelle"] == muelle
                 ]
 
                 if citas:
-                    ini=min(c["inicio"] for c in citas)
-                    fin=max(c["fin"] for c in citas)
-                    op=(
-                        datetime.combine(fecha_dt,fin)-
+                    ini = min(c["inicio"] for c in citas)
+                    fin = max(c["fin"] for c in citas)
+                    op = (
+                        datetime.combine(fecha_dt,fin) -
                         datetime.combine(fecha_dt,ini)
                     ).total_seconds()/60
                 else:
-                    op=0
+                    op = 0
 
-                bloqueos=[
-                    b for b in st.session_state.bloqueos
-                    if b["fecha"]==fecha_str and
-                    c["muelle"]==muelle
-                ]
+                # ================= BLOQUEOS =================
+                if "bloqueos" in st.session_state:
+                    bloqueos = [
+                        b for b in st.session_state.bloqueos
+                        if b["fecha"] == fecha_str and
+                        b["muelle"] == muelle
+                    ]
+                else:
+                    bloqueos = []
 
-                tiempo_bloq=sum(
+                tiempo_bloq = sum(
                     (
-                        datetime.combine(fecha_dt,b["fin"])-
+                        datetime.combine(fecha_dt,b["fin"]) -
                         datetime.combine(fecha_dt,b["inicio"])
                     ).total_seconds()/60
                     for b in bloqueos
                 )
 
-                disponible=max(jornada_min-tiempo_bloq,0)
+                # ================= CÁLCULOS OEE =================
+                disponible = max(jornada_min - tiempo_bloq, 0)
 
-                disponibilidad=disponible/jornada_min if jornada_min>0 else 0
-                rendimiento=op/disponible if disponible>0 else 0
-                utilizacion=op/jornada_min if jornada_min>0 else 0
+                disponibilidad = disponible / jornada_min if jornada_min > 0 else 0
+                rendimiento = op / disponible if disponible > 0 else 0
+                utilizacion = op / jornada_min if jornada_min > 0 else 0
 
-                oee=disponibilidad*rendimiento*utilizacion
+                oee = disponibilidad * rendimiento * utilizacion
 
-                oee_data.setdefault(muelle,{})[(fecha_str,"Disponibilidad")]=disponibilidad
-                oee_data.setdefault(muelle,{})[(fecha_str,"Rendimiento")]=rendimiento
-                oee_data.setdefault(muelle,{})[(fecha_str,"Utilización")]=utilizacion
-                oee_data.setdefault(muelle,{})[(fecha_str,"OEE")]=oee
+                oee_data.setdefault(muelle,{})[(fecha_str,"Disponibilidad")] = disponibilidad
+                oee_data.setdefault(muelle,{})[(fecha_str,"Rendimiento")] = rendimiento
+                oee_data.setdefault(muelle,{})[(fecha_str,"Utilización")] = utilizacion
+                oee_data.setdefault(muelle,{})[(fecha_str,"OEE")] = oee
 
-        df_oee=pd.DataFrame(oee_data).T
+        df_oee = pd.DataFrame(oee_data).T
 
-        col_ord=[]
+        col_ord = []
         for fecha in fechas:
-            col_ord+=[
+            col_ord += [
                 (fecha,"Disponibilidad"),
                 (fecha,"Rendimiento"),
                 (fecha,"Utilización"),
                 (fecha,"OEE")
             ]
 
-        df_oee=df_oee[col_ord]
+        df_oee = df_oee[col_ord]
 
         def color_oee(v):
             if isinstance(v,(int,float)):
-                if v>=0.75:
+                if v >= 0.75:
                     return "background-color:#c6efce"
-                elif v>=0.5:
+                elif v >= 0.5:
                     return "background-color:#fff2cc"
                 else:
                     return "background-color:#ffc7ce"
             return ""
 
-        styled_oee=df_oee.style.format("{:.1%}").applymap(color_oee)
-        st.dataframe(styled_oee,use_container_width=True)
+        styled_oee = df_oee.style.format("{:.1%}").applymap(color_oee)
 
+        st.dataframe(styled_oee, use_container_width=True)
         # ================= EXPORTAR =================
         df_export=df.copy()
         df_export.to_excel("reporte_operacion.xlsx")
