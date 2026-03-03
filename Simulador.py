@@ -790,6 +790,11 @@ if pagina == "📊 Fase 4 - Indicadores":
 
         fechas = sorted(list(set(c["fecha"] for c in st.session_state.confirmadas)))
 
+        # ✅ GUARD: si no hay confirmadas, no hay reporte
+        if not fechas:
+            st.info("No hay citas confirmadas para generar indicadores.")
+            st.stop()
+
         data = {}
 
         for fecha_str in fechas:
@@ -859,7 +864,13 @@ if pagina == "📊 Fase 4 - Indicadores":
                 (fecha,"% Util")
             ]
 
-        df = df[columnas_ordenadas]
+        # ✅ si faltan columnas por alguna razón, reindexa sin romper
+        df = df.reindex(columns=columnas_ordenadas)
+
+        # ✅ GUARD: df sin columnas
+        if df.empty or len(df.columns) == 0:
+            st.info("No hay datos suficientes para calcular el reporte (df vacío).")
+            st.stop()
 
         # ================= TOTAL =================
         fila_total = {}
@@ -874,9 +885,12 @@ if pagina == "📊 Fase 4 - Indicadores":
         # ================= ALERTAS =================
         alertas = []
         for fecha in fechas:
-            util_m2 = df.loc["Muelle 2"][(fecha,"% Util")]
-            if util_m2 >= 0.9:
-                alertas.append(f"🚨 {fecha} saturación en Muelle 2")
+            try:
+                util_m2 = df.loc["Muelle 2"][(fecha,"% Util")]
+                if util_m2 >= 0.9:
+                    alertas.append(f"🚨 {fecha} saturación en Muelle 2")
+            except KeyError:
+                pass
 
         if alertas:
             st.error(" | ".join(alertas))
@@ -920,9 +934,9 @@ if pagina == "📊 Fase 4 - Indicadores":
 
             for fecha in fechas:
                 fechas_plot.append(fecha)
-                util_plot.append(df_plot.loc[muelle][(fecha,"% Util")])
-                op_plot.append(df_plot.loc[muelle][(fecha,"Tiempo Op")])
-                oc_plot.append(df_plot.loc[muelle][(fecha,"Tiempo Oc")])
+                util_plot.append(df_plot.loc[muelle][(fecha,"% Util")] if (fecha,"% Util") in df_plot.columns else None)
+                op_plot.append(df_plot.loc[muelle][(fecha,"Tiempo Op")] if (fecha,"Tiempo Op") in df_plot.columns else None)
+                oc_plot.append(df_plot.loc[muelle][(fecha,"Tiempo Oc")] if (fecha,"Tiempo Oc") in df_plot.columns else None)
 
             fig_util = px.line(
                 x=fechas_plot,
@@ -1042,7 +1056,7 @@ if pagina == "📊 Fase 4 - Indicadores":
                 (fecha,"OEE")
             ]
 
-        df_oee = df_oee[col_ord]
+        df_oee = df_oee.reindex(columns=col_ord)
 
         def color_oee(v):
             if isinstance(v,(int,float)):
