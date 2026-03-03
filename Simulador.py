@@ -418,64 +418,55 @@ if pagina == "📅 Fase 3 - Simulación":
             key=lambda x: x["duracion"]
         )
 
-        # -------- ASIGNACIÓN BASE --------
+        # -------- ASIGNACIÓN BASE (SOLO EN SU MUELLE) --------
         for nec in ordenadas:
 
             fecha_str = nec["fecha"]
             fecha_dt = datetime.strptime(fecha_str, "%Y-%m-%d").date()
             dur = nec["duracion"]
-
-            # ✅ Orden de intentos (balance previo): muelle asignado -> Contingencia
-            if nec["muelle"] == "Muelle 1":
-                muelles_intento = ["Muelle 1", "Contingencia"]
-            elif nec["muelle"] == "Muelle 2":
-                muelles_intento = ["Muelle 2", "Contingencia"]
-            else:
-                muelles_intento = ["Contingencia"]
+            muelle = nec["muelle"]
 
             asignado = False
 
-            for muelle in muelles_intento:
+            franja = obtener_franja(fecha_str, muelle)
+            inicio_dt = datetime.combine(fecha_dt, franja["inicio"])
+            fin_franja = datetime.combine(fecha_dt, franja["fin"])
 
-                franja = obtener_franja(fecha_str, muelle)
+            while inicio_dt + timedelta(minutes=dur) <= fin_franja:
 
-                inicio_dt = datetime.combine(fecha_dt, franja["inicio"])
-                fin_franja = datetime.combine(fecha_dt, franja["fin"])
+                fin_dt = inicio_dt + timedelta(minutes=dur)
 
-                while inicio_dt + timedelta(minutes=dur) <= fin_franja:
+                if not conflicto(fecha_str, inicio_dt.time(), fin_dt.time(), muelle):
 
-                    fin_dt = inicio_dt + timedelta(minutes=dur)
+                    st.session_state.confirmadas.append({
+                        "id": len(st.session_state.confirmadas) + 1,
+                        "title": nec["material"],
+                        "start": inicio_dt.strftime("%Y-%m-%dT%H:%M:%S"),
+                        "end": fin_dt.strftime("%Y-%m-%dT%H:%M:%S"),
+                        "fecha": fecha_str,
+                        "inicio": inicio_dt.time(),
+                        "fin": fin_dt.time(),
+                        "muelle": muelle
+                    })
 
-                    if not conflicto(fecha_str, inicio_dt.time(), fin_dt.time(), muelle):
-
-                        st.session_state.confirmadas.append({
-                            "id": len(st.session_state.confirmadas) + 1,
-                            "title": nec["material"],
-                            "start": inicio_dt.strftime("%Y-%m-%dT%H:%M:%S"),
-                            "end": fin_dt.strftime("%Y-%m-%dT%H:%M:%S"),
-                            "fecha": fecha_str,
-                            "inicio": inicio_dt.time(),
-                            "fin": fin_dt.time(),
-                            "muelle": muelle
-                        })
-
-                        asignado = True
-                        break
-
-                    inicio_dt += timedelta(minutes=5)
-
-                if asignado:
+                    asignado = True
                     break
+
+                inicio_dt += timedelta(minutes=5)
 
             if not asignado:
                 st.session_state.no_programadas.append(nec)
 
-        # -------- BALANCEO INTELIGENTE MIXTO CON BLOQUEOS --------
-        muelle_origen = "Muelle 1"
-        muelle_ref = "Muelle 2"
-        muelle_destino = "Contingencia"
+        # -------- BALANCE / RESCATE A CONTINGENCIA --------
+        # ✅ Reglas:
+        # - Si M2 tiene citas: Contingencia abre desde fin_m2 y se balancea vs Muelle 1
+        # - Si M2 NO tiene nada: Contingencia abre desde 06:00 y se balancea vs Muelle 1
+        # - Siempre respeta bloqueos/franjas/citas vía conflicto()
+        muelle_m1 = "Muelle 1"
+        muelle_m2 = "Muelle 2"
+        muelle_cont = "Contingencia"
 
-        fechas_unicas = list(set(c["fecha"] for c in st.session_state.confirmadas))
+        fechas_unicas = list(set([c["fecha"] for c in st.session_state.confirmadas] + [n["fecha"] for n in st.session_state.no_programadas]))
 
         for fecha_str in fechas_unicas:
 
@@ -483,10 +474,7 @@ if pagina == "📅 Fase 3 - Simulación":
 
             def citas_muelle(muelle):
                 return sorted(
-                    [
-                        c for c in st.session_state.confirmadas
-                        if c["muelle"] == muelle and c["fecha"] == fecha_str
-                    ],
+                    [c for c in st.session_state.confirmadas if c["fecha"] == fecha_str and c["muelle"] == muelle],
                     key=lambda x: x["inicio"]
                 )
 
@@ -505,20 +493,17 @@ if pagina == "📅 Fase 3 - Simulación":
                     )
                 return total
 
-            # ✅ BUSCA EL PRIMER SLOT REAL EN CONTINGENCIA RESPETANDO:
-            # - Bloqueos
-            # - Citas ya programadas
-            # - Franjas (06:00–22:00 por defecto)
-            # - REGLA OPERATIVA: si Muelle 2 tiene citas, Contingencia solo abre desde fin_m2
-            def primer_slot_disponible(muelle, inicio_base_dt, duracion_min):
+            # ✅ base de contingencia según escenario
+            fin_m2 = ultima_hora(muelle_m2)
+            base_cont = datetime.combine(fecha_dt, fin_m2) if fin_m2 else datetime.combine(fecha_dt, time(6, 0))
 
+            def primer_slot_disponible(muelle, inicio_base_dt, duracion_min):
                 franja = obtener_franja(fecha_str, muelle)
 
                 inicio_dt = max(datetime.combine(fecha_dt, franja["inicio"]), inicio_base_dt)
                 fin_franja = datetime.combine(fecha_dt, franja["fin"])
 
                 while inicio_dt + timedelta(minutes=duracion_min) <= fin_franja:
-
                     fin_dt = inicio_dt + timedelta(minutes=duracion_min)
 
                     if not conflicto(fecha_str, inicio_dt.time(), fin_dt.time(), muelle):
@@ -528,33 +513,58 @@ if pagina == "📅 Fase 3 - Simulación":
 
                 return None, None
 
-            mejora = True
+            # ✅ 1) RESCATE DE NO_PROGRAMADAS (M1 -> CONT) SOLO SI AYUDA A BALANCEAR
+            pendientes = [n for n in st.session_state.no_programadas if n["fecha"] == fecha_str and n["muelle"] == muelle_m1]
+            pendientes = sorted(pendientes, key=lambda x: x["duracion"])
 
+            nuevos_programados = []
+
+            for nec in pendientes:
+
+                carga_m1 = carga_total(muelle_m1)
+                carga_cont = carga_total(muelle_cont)
+
+                # ✅ condición de balance (si Cont ya está igual o más cargado, no meto más)
+                if carga_cont >= carga_m1 - 30:
+                    break
+
+                dur = nec["duracion"]
+                ini_new, fin_new = primer_slot_disponible(muelle_cont, base_cont, dur)
+
+                if ini_new is None:
+                    break
+
+                st.session_state.confirmadas.append({
+                    "id": len(st.session_state.confirmadas) + 1,
+                    "title": nec["material"],
+                    "start": ini_new.strftime("%Y-%m-%dT%H:%M:%S"),
+                    "end": fin_new.strftime("%Y-%m-%dT%H:%M:%S"),
+                    "fecha": fecha_str,
+                    "inicio": ini_new.time(),
+                    "fin": fin_new.time(),
+                    "muelle": muelle_cont
+                })
+
+                nuevos_programados.append(nec)
+
+            if nuevos_programados:
+                st.session_state.no_programadas = [n for n in st.session_state.no_programadas if n not in nuevos_programados]
+
+            # ✅ 2) BALANCEO MOVIENDO CITAS DE M1 -> CONT (SIEMPRE RESPETA BASE_CONT)
+            mejora = True
             while mejora:
 
-                carga_m1 = carga_total(muelle_origen)
-                carga_cont = carga_total(muelle_destino)
+                carga_m1 = carga_total(muelle_m1)
+                carga_cont = carga_total(muelle_cont)
 
-                # tolerancia para no micro-mover
                 if carga_m1 <= carga_cont + 30:
                     break
 
-                # base contingencia según escenario:
-                # - si M2 tiene citas -> desde fin_m2
-                # - si M2 está vacío -> desde 06:00
-                fin_m2 = ultima_hora(muelle_ref)
-                base_cont = datetime.combine(fecha_dt, fin_m2) if fin_m2 else datetime.combine(fecha_dt, time(6, 0))
-
-                citas_origen = sorted(
-                    citas_muelle(muelle_origen),
-                    key=lambda x: x["fin"],
-                    reverse=True
-                )
-
-                if not citas_origen:
+                origen = sorted(citas_muelle(muelle_m1), key=lambda x: x["fin"], reverse=True)
+                if not origen:
                     break
 
-                c = citas_origen[0]
+                c = origen[0]
 
                 duracion = int(
                     (
@@ -563,17 +573,13 @@ if pagina == "📅 Fase 3 - Simulación":
                     ).total_seconds() / 60
                 )
 
-                ini_new, fin_new = primer_slot_disponible(muelle_destino, base_cont, duracion)
-
+                ini_new, fin_new = primer_slot_disponible(muelle_cont, base_cont, duracion)
                 if ini_new is None:
                     break
 
-                nueva_carga_m1 = carga_m1 - duracion
-                nueva_carga_cont = carga_cont + duracion
+                if abs((carga_m1 - duracion) - (carga_cont + duracion)) < abs(carga_m1 - carga_cont):
 
-                if abs(nueva_carga_m1 - nueva_carga_cont) < abs(carga_m1 - carga_cont):
-
-                    c["muelle"] = muelle_destino
+                    c["muelle"] = muelle_cont
                     c["inicio"] = ini_new.time()
                     c["fin"] = fin_new.time()
                     c["start"] = ini_new.strftime("%Y-%m-%dT%H:%M:%S")
