@@ -728,11 +728,17 @@ if pagina == "📊 Fase 4 - Indicadores":
 
     st.title("📊 Indicadores Operativos")
 
-    if not st.session_state.confirmadas:
-        st.info("Aún no hay citas simuladas")
-        st.stop()
+    # 🔹 Estado persistente del reporte
+    if "reporte_generado" not in st.session_state:
+        st.session_state.reporte_generado = False
 
+    # 🔹 Botón que activa el reporte
     if st.button("📊 Generar reporte diario"):
+        st.session_state.reporte_generado = True
+
+    # 🔹 Todo el bloque del reporte va dentro de esta condición
+    if st.session_state.reporte_generado:
+
 
         from datetime import datetime, time
         import pandas as pd
