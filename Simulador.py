@@ -1011,9 +1011,13 @@ if pagina == "📊 Fase 4 - Indicadores":
 
         st.dataframe(styled_oee, use_container_width=True)
 
-        # ================= FINALIZACIÓN OPERATIVA (COMPACTO CON COLOR) =================
+        # ================= FINALIZACIÓN OPERATIVA (GUARDADO + HISTÓRICO) =================
         st.divider()
         st.subheader("🕓 Finalización Operativa Diaria")
+
+        # 🔹 Inicializar almacenamiento si no existe
+        if "finalizaciones" not in st.session_state:
+            st.session_state.finalizaciones = {}
 
         # 🔹 Selector de fecha
         fecha_sel = st.selectbox(
@@ -1043,7 +1047,7 @@ if pagina == "📊 Fase 4 - Indicadores":
         with col2:
             hora_real = st.time_input(
                 "Final Real",
-                key="hora_real_unica"
+                key=f"hora_real_{fecha_sel}"
             )
 
         if hora_teorica:
@@ -1054,6 +1058,13 @@ if pagina == "📊 Fase 4 - Indicadores":
             desviacion_min = (
                 hora_real_dt - hora_teorica_dt
             ).total_seconds()/60
+
+            # 🔹 GUARDAR AUTOMÁTICAMENTE
+            st.session_state.finalizaciones[fecha_sel] = {
+                "Final Teórico": hora_teorica_str,
+                "Final Real": hora_real.strftime("%H:%M"),
+                "Desviación (min)": round(desviacion_min,1)
+            }
 
             # ================= INDICADOR VISUAL =================
             if desviacion_min <= 0:
@@ -1086,6 +1097,30 @@ if pagina == "📊 Fase 4 - Indicadores":
                 """,
                 unsafe_allow_html=True
             )
+
+        # ================= TABLA HISTÓRICA =================
+        if st.session_state.finalizaciones:
+
+            st.markdown("### 📊 Histórico Finalización Operativa")
+
+            df_final = pd.DataFrame(st.session_state.finalizaciones).T
+
+            def color_hist(v):
+                if isinstance(v,(int,float)):
+                    if v <= 0:
+                        return "background-color:#c6efce"
+                    elif v <= 60:
+                        return "background-color:#fff2cc"
+                    else:
+                        return "background-color:#ffc7ce"
+                return ""
+
+            styled_hist = (
+                df_final.style
+                .applymap(color_hist, subset=["Desviación (min)"])
+            )
+
+            st.dataframe(styled_hist, use_container_width=True)
         # ================= EXPORTAR =================
         df_export=df.copy()
         df_export.to_excel("reporte_operacion.xlsx")
