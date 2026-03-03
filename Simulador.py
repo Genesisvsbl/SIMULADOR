@@ -1011,12 +1011,99 @@ if pagina == "📊 Fase 4 - Indicadores":
 
         st.dataframe(styled_oee, use_container_width=True)
 
-        # ================= HORA FIN OPERACIÓN =================
-        st.markdown("## 🕓 Hora de Finalización de Operación por Día")
+        # ================= HORA FIN OPERACIÓN GLOBAL =================
+        st.markdown("## 🕓 Hora Finalización Global por Día")
 
-        df_fin = pd.DataFrame(resumen_fin_operacion).T
+        resumen_global = {}
 
-        st.dataframe(df_fin, use_container_width=True)
+        for fecha_str in fechas:
+
+            fecha_dt = datetime.strptime(fecha_str,"%Y-%m-%d")
+
+            citas_dia = [
+                c for c in st.session_state.confirmadas
+                if c["fecha"] == fecha_str
+            ]
+
+            if citas_dia:
+                hora_fin = max(c["fin"] for c in citas_dia)
+                hora_fin_str = hora_fin.strftime("%H:%M")
+            else:
+                hora_fin = None
+                hora_fin_str = "Sin operación"
+
+            resumen_global[fecha_str] = {
+                "Final Teórico": hora_fin_str
+            }
+
+        df_fin = pd.DataFrame(resumen_global).T
+
+        # ================= INGRESO HORA REAL =================
+        st.markdown("### ✏️ Ingresar Hora Final Real")
+
+        indicador_data = {}
+
+        for fecha_str in fechas:
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+                st.write(f"📅 {fecha_str}")
+                st.write(f"Final Teórico: {df_fin.loc[fecha_str,'Final Teórico']}")
+
+            with col2:
+                hora_real = st.time_input(
+                    f"Hora real {fecha_str}",
+                    key=f"hora_real_{fecha_str}"
+                )
+
+            # ================= NUEVO INDICADOR =================
+            if df_fin.loc[fecha_str,'Final Teórico'] != "Sin operación":
+
+                hora_teorica_dt = datetime.combine(
+                    datetime.strptime(fecha_str,"%Y-%m-%d"),
+                    datetime.strptime(
+                        df_fin.loc[fecha_str,'Final Teórico'],
+                        "%H:%M"
+                    ).time()
+                )
+
+                hora_real_dt = datetime.combine(
+                    datetime.strptime(fecha_str,"%Y-%m-%d"),
+                    hora_real
+                )
+
+                diferencia_min = (
+                    hora_real_dt - hora_teorica_dt
+                ).total_seconds() / 60
+
+                indicador_data[fecha_str] = {
+                    "Final Teórico": df_fin.loc[fecha_str,'Final Teórico'],
+                    "Final Real": hora_real.strftime("%H:%M"),
+                    "Desviación (min)": round(diferencia_min,1)
+                }
+
+        if indicador_data:
+            st.markdown("## 📊 Indicador Desviación Operativa")
+
+            df_indicador = pd.DataFrame(indicador_data).T
+
+            def color_desv(v):
+                if isinstance(v,(int,float)):
+                    if v <= 0:
+                        return "background-color:#c6efce"
+                    elif v <= 60:
+                        return "background-color:#fff2cc"
+                    else:
+                        return "background-color:#ffc7ce"
+                return ""
+
+            styled_ind = (
+                df_indicador.style
+                .applymap(color_desv, subset=["Desviación (min)"])
+            )
+
+            st.dataframe(styled_ind, use_container_width=True)
         # ================= EXPORTAR =================
         df_export=df.copy()
         df_export.to_excel("reporte_operacion.xlsx")
