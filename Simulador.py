@@ -141,11 +141,11 @@ for k in [
     "bloqueos",
     "franjas",
     "franjas_inhabilitadas",
-    "ejecutados"
+    "ejecutados",
     "finalizaciones"
 ]:
     if k not in st.session_state:
-        st.session_state[k] = []
+        st.session_state[k] = {} if k == "finalizaciones" else []
 
 cargar_datos()
 
@@ -1073,7 +1073,6 @@ if not fechas:
 else:
     # ---------- Seleccionar día ----------
     fecha_sel = st.selectbox("Selecciona el día a registrar", fechas, key="fecha_sel_final")
-
     fecha_dt = datetime.strptime(fecha_sel, "%Y-%m-%d")
 
     # ---------- Calcular Final Teórico del día ----------
@@ -1129,10 +1128,11 @@ else:
                 st.success("Guardado y persistido ✅")
                 st.rerun()
 
-    # ---------- Tabla del día seleccionado (Teórico / Real / Diferencia) ----------
-    if fecha_sel in st.session_state.finalizaciones:
-        row = st.session_state.finalizaciones[fecha_sel]
+    # ---------- (OCULTO) Resultado del día seleccionado ----------
+    ver_detalle = st.checkbox("Ver detalle del día seleccionado", value=False)
 
+    if ver_detalle and (fecha_sel in st.session_state.finalizaciones):
+        row = st.session_state.finalizaciones[fecha_sel]
         df_dia = pd.DataFrame([{
             "Fecha": fecha_sel,
             "Final Teórico": row.get("Final Teórico", ""),
@@ -1140,17 +1140,14 @@ else:
             "Δ (min)": row.get("Desviación (min)", ""),
             "Δ (h)": row.get("Desviación (h)", "")
         }])
-
-        st.markdown("### 📌 Resultado del día seleccionado")
         st.dataframe(df_dia, use_container_width=True)
 
-    # ---------- Histórico ----------
+    # ---------- Histórico (SIEMPRE visible si hay registros) ----------
     if st.session_state.finalizaciones:
         st.markdown("### 📊 Histórico Finalización Operativa")
 
         df_hist = pd.DataFrame(st.session_state.finalizaciones).T.sort_index()
 
-        # Orden bonito
         cols = ["Final Teórico", "Final Real", "Desviación (min)", "Desviación (h)"]
         df_hist = df_hist[[c for c in cols if c in df_hist.columns]]
 
@@ -1164,24 +1161,26 @@ else:
                     return "background-color:#ffc7ce"   # 🔴
             return ""
 
-        st.dataframe(
-            df_hist.style.applymap(color_hist, subset=["Desviación (min)"]) if "Desviación (min)" in df_hist.columns else df_hist,
-            use_container_width=True
+        if "Desviación (min)" in df_hist.columns:
+            st.dataframe(df_hist.style.applymap(color_hist, subset=["Desviación (min)"]), use_container_width=True)
+        else:
+            st.dataframe(df_hist, use_container_width=True)
+
+    # ================= EXPORTAR (SIEMPRE visible) =================
+    df_export = df.copy()
+
+    df_final_export = (
+        pd.DataFrame(st.session_state.finalizaciones).T.sort_index()
+        if st.session_state.get("finalizaciones") else pd.DataFrame()
+    )
+
+    with pd.ExcelWriter("reporte_operacion.xlsx", engine="openpyxl") as writer:
+        df_export.to_excel(writer, sheet_name="Indicadores")
+        df_final_export.to_excel(writer, sheet_name="Finalizacion")
+
+    with open("reporte_operacion.xlsx", "rb") as f:
+        st.download_button(
+            "📥 Descargar Excel",
+            data=f,
+            file_name="reporte_operacion.xlsx"
         )
-
-        # ================= EXPORTAR =================
-        df_export = df.copy()
-
-        df_final_export = pd.DataFrame(st.session_state.finalizaciones).T.sort_index() \
-            if st.session_state.get("finalizaciones") else pd.DataFrame()
-
-        with pd.ExcelWriter("reporte_operacion.xlsx", engine="openpyxl") as writer:
-            df_export.to_excel(writer, sheet_name="Indicadores")
-            df_final_export.to_excel(writer, sheet_name="Finalizacion")
-
-        with open("reporte_operacion.xlsx","rb") as f:
-            st.download_button(
-                "📥 Descargar Excel",
-                data=f,
-                file_name="reporte_operacion.xlsx"
-            )
