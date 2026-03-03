@@ -456,7 +456,7 @@ if pagina == "📅 Fase 3 - Simulación":
             if not asignado:
                 st.session_state.no_programadas.append(nec)
 
-        # -------- BALANCEO INTELIGENTE --------
+        # -------- BALANCEO INTELIGENTE MIXTO --------
         muelle_origen = "Muelle 1"
         muelle_ref = "Muelle 2"
         muelle_destino = "Contingencia"
@@ -467,36 +467,62 @@ if pagina == "📅 Fase 3 - Simulación":
 
             fecha_dt = datetime.strptime(fecha_str, "%Y-%m-%d")
 
-            def ultima_hora(muelle):
-                horas = [
-                    c["fin"] for c in st.session_state.confirmadas
+            def citas_muelle(muelle):
+                return [
+                    c for c in st.session_state.confirmadas
                     if c["muelle"] == muelle and c["fecha"] == fecha_str
                 ]
+
+            def ultima_hora(muelle):
+                horas = [c["fin"] for c in citas_muelle(muelle)]
                 return max(horas) if horas else None
+
+            def carga_total(muelle):
+                total = 0
+                for c in citas_muelle(muelle):
+                    total += int(
+                        (
+                            datetime.combine(datetime.today(), c["fin"]) -
+                            datetime.combine(datetime.today(), c["inicio"])
+                        ).total_seconds() / 60
+                    )
+                return total
 
             mejora = True
 
             while mejora:
 
-                fin_origen = ultima_hora(muelle_origen)
-                fin_ref = ultima_hora(muelle_ref)
-                fin_dest = ultima_hora(muelle_destino)
+                fin_m1 = ultima_hora(muelle_origen)
+                fin_m2 = ultima_hora(muelle_ref)
+                fin_cont = ultima_hora(muelle_destino)
 
-                if not fin_origen or not fin_ref:
-                    break
+                carga_m1 = carga_total(muelle_origen)
+                carga_cont = carga_total(muelle_destino)
 
-                fin_linea = max([f for f in [fin_ref, fin_dest] if f])
+                citas_ref = citas_muelle(muelle_ref)
 
-                diff_actual = abs(
-                    datetime.combine(fecha_dt, fin_origen) -
+                # -------------------------
+                # ESCENARIO 2 → M2 VACÍO
+                # -------------------------
+                if not citas_ref:
+                    if not fin_m1:
+                        break
+                    base = time(6, 0)
+                    fin_linea = max([f for f in [fin_cont, base] if f])
+                else:
+                    if not fin_m1 or not fin_m2:
+                        break
+                    fin_linea = max([f for f in [fin_m2, fin_cont] if f])
+
+                diff_hora_actual = abs(
+                    datetime.combine(fecha_dt, fin_m1) -
                     datetime.combine(fecha_dt, fin_linea)
                 )
 
+                diff_carga_actual = abs(carga_m1 - carga_cont)
+
                 citas_origen = sorted(
-                    [
-                        c for c in st.session_state.confirmadas
-                        if c["muelle"] == muelle_origen and c["fecha"] == fecha_str
-                    ],
+                    citas_muelle(muelle_origen),
                     key=lambda x: x["fin"],
                     reverse=True
                 )
@@ -524,12 +550,17 @@ if pagina == "📅 Fase 3 - Simulación":
                 if not nuevo_fin_origen:
                     break
 
-                diff_nuevo = abs(
+                nueva_carga_m1 = carga_m1 - duracion
+                nueva_carga_cont = carga_cont + duracion
+
+                diff_hora_nuevo = abs(
                     datetime.combine(fecha_dt, nuevo_fin_origen) -
                     fin_dest_nuevo
                 )
 
-                if diff_nuevo < diff_actual:
+                diff_carga_nuevo = abs(nueva_carga_m1 - nueva_carga_cont)
+
+                if diff_hora_nuevo < diff_hora_actual and diff_carga_nuevo < diff_carga_actual:
 
                     c["muelle"] = muelle_destino
                     c["inicio"] = inicio_dest.time()
@@ -542,7 +573,8 @@ if pagina == "📅 Fase 3 - Simulación":
 
         st.session_state.necesidades = []
         guardar_datos()
-        st.rerun()    # ================= REPROGRAMACIÓN =================
+        st.rerun()    
+# ================= REPROGRAMACIÓN =================
     if st.session_state.no_programadas:
 
         st.error("No caben en capacidad — puedes reprogramar")
