@@ -1059,125 +1059,115 @@ if pagina == "📊 Fase 4 - Indicadores":
 
         st.dataframe(styled_oee, use_container_width=True)
 
-        # ================= FINALIZACIÓN OPERATIVA (TABLA + GUARDADO + HISTÓRICO + PERSISTENCIA) =================
-        st.divider()
-        st.subheader("🕓 Finalización Operativa Diaria")
+# ================= FINALIZACIÓN OPERATIVA (POR DÍA + GUARDADO + HISTÓRICO + PERSISTENCIA) =================
+st.divider()
+st.subheader("🕓 Finalización Operativa Diaria")
 
-        # 🔹 Asegurar almacenamiento en session_state
-        if "finalizaciones" not in st.session_state:
-            st.session_state.finalizaciones = {}
+# Asegurar dict
+if "finalizaciones" not in st.session_state:
+    st.session_state.finalizaciones = {}
 
-        # ================= ARMAR TABLA BASE (todas las fechas) =================
-        registros = []
-        for fecha_str in fechas:
-            fecha_dt = datetime.strptime(fecha_str, "%Y-%m-%d")
+# Si no hay fechas, no hay nada que registrar
+if not fechas:
+    st.info("No hay días con operación aún.")
+else:
+    # ---------- Seleccionar día ----------
+    fecha_sel = st.selectbox("Selecciona el día a registrar", fechas, key="fecha_sel_final")
 
-            citas_dia = [
-                c for c in st.session_state.confirmadas
-                if c["fecha"] == fecha_str
-            ]
+    fecha_dt = datetime.strptime(fecha_sel, "%Y-%m-%d")
 
-            # Final teórico (simulado)
-            if citas_dia:
-                hora_teorica = max(c["fin"] for c in citas_dia)  # time()
-                teorico_str = hora_teorica.strftime("%H:%M")
-            else:
-                teorico_str = ""  # sin operación
+    # ---------- Calcular Final Teórico del día ----------
+    citas_dia = [c for c in st.session_state.confirmadas if c["fecha"] == fecha_sel]
 
-            # Final real guardado (si existe)
-            real_guardado_str = st.session_state.finalizaciones.get(fecha_str, {}).get("Final Real", "")
+    if citas_dia:
+        hora_teorica = max(c["fin"] for c in citas_dia)  # time()
+        teorico_str = hora_teorica.strftime("%H:%M")
+    else:
+        hora_teorica = None
+        teorico_str = "Sin operación"
 
-            # convertir "HH:MM" a time() para el editor
-            real_time = None
-            if real_guardado_str:
-                try:
-                    real_time = datetime.strptime(real_guardado_str, "%H:%M").time()
-                except:
-                    real_time = None
+    st.metric("Final Teórico (Simulado)", teorico_str)
 
-            registros.append({
-                "Fecha": fecha_str,
-                "Final Teórico": teorico_str,
-                "Final Real": real_time
-            })
+    # ---------- Cargar Real previo (si existe) ----------
+    real_prev_str = st.session_state.finalizaciones.get(fecha_sel, {}).get("Final Real", "")
+    real_prev_time = None
+    if real_prev_str:
+        try:
+            real_prev_time = datetime.strptime(real_prev_str, "%H:%M").time()
+        except:
+            real_prev_time = None
 
-        df_base = pd.DataFrame(registros)
-
-        st.markdown("### ✍️ Digita el **Final Real** por fecha y guarda")
-
-        df_edit = st.data_editor(
-            df_base,
-            hide_index=True,
-            use_container_width=True,
-            column_config={
-                "Fecha": st.column_config.TextColumn("Fecha", disabled=True),
-                "Final Teórico": st.column_config.TextColumn("Final Teórico", disabled=True),
-                "Final Real": st.column_config.TimeColumn("Final Real", step=60, format="HH:mm"),
-            },
-            disabled=["Fecha", "Final Teórico"],
-            key="editor_finalizaciones"
+    # ---------- Form para evitar recargas raras ----------
+    with st.form(key=f"form_final_{fecha_sel}"):
+        hora_real = st.time_input(
+            "Final Real (lo escribes tú)",
+            value=real_prev_time if real_prev_time else time(18, 0),
+            key=f"hora_real_{fecha_sel}"
         )
 
-        # ================= BOTÓN GUARDAR (guarda todo lo editado) =================
-        if st.button("💾 Guardar finalizaciones"):
-            guardados = 0
+        btn_guardar = st.form_submit_button("💾 Guardar")
 
-            for _, row in df_edit.iterrows():
-                fecha_str = row["Fecha"]
-                teorico_str = row["Final Teórico"]
-                real_time = row["Final Real"]
-
-                # Si no hubo operación (sin teórico) o el usuario no escribió real → saltar
-                if not teorico_str or real_time is None:
-                    continue
-
-                fecha_dt = datetime.strptime(fecha_str, "%Y-%m-%d")
-
-                hora_teorica_dt = datetime.combine(
-                    fecha_dt,
-                    datetime.strptime(teorico_str, "%H:%M").time()
-                )
-                hora_real_dt = datetime.combine(fecha_dt, real_time)
+        if btn_guardar:
+            if not hora_teorica:
+                st.warning("Ese día está en 'Sin operación'. No se puede guardar final real.")
+            else:
+                hora_teorica_dt = datetime.combine(fecha_dt, hora_teorica)
+                hora_real_dt = datetime.combine(fecha_dt, hora_real)
 
                 desviacion_min = (hora_real_dt - hora_teorica_dt).total_seconds() / 60
                 desviacion_h = desviacion_min / 60
 
-                st.session_state.finalizaciones[fecha_str] = {
+                st.session_state.finalizaciones[fecha_sel] = {
                     "Final Teórico": teorico_str,
-                    "Final Real": real_time.strftime("%H:%M"),
+                    "Final Real": hora_real.strftime("%H:%M"),
                     "Desviación (min)": round(desviacion_min, 1),
                     "Desviación (h)": round(desviacion_h, 2),
                 }
-                guardados += 1
 
-            guardar_datos()
-            st.success(f"Finalizaciones guardadas ✅ ({guardados} registros)")
-            st.rerun()
+                # ✅ Persistir en JSON
+                guardar_datos()
+                st.success("Guardado y persistido ✅")
+                st.rerun()
 
-        # ================= TABLA HISTÓRICA (con colores) =================
-        if st.session_state.finalizaciones:
+    # ---------- Tabla del día seleccionado (Teórico / Real / Diferencia) ----------
+    if fecha_sel in st.session_state.finalizaciones:
+        row = st.session_state.finalizaciones[fecha_sel]
 
-            st.markdown("### 📊 Histórico Finalización Operativa")
+        df_dia = pd.DataFrame([{
+            "Fecha": fecha_sel,
+            "Final Teórico": row.get("Final Teórico", ""),
+            "Final Real": row.get("Final Real", ""),
+            "Δ (min)": row.get("Desviación (min)", ""),
+            "Δ (h)": row.get("Desviación (h)", "")
+        }])
 
-            df_final = pd.DataFrame(st.session_state.finalizaciones).T
-            df_final = df_final.sort_index()
+        st.markdown("### 📌 Resultado del día seleccionado")
+        st.dataframe(df_dia, use_container_width=True)
 
-            def color_hist(v):
-                if isinstance(v, (int, float)):
-                    if v <= 0:
-                        return "background-color:#c6efce"   # 🟢
-                    elif v <= 60:
-                        return "background-color:#fff2cc"   # 🟡
-                    else:
-                        return "background-color:#ffc7ce"   # 🔴
-                return ""
+    # ---------- Histórico ----------
+    if st.session_state.finalizaciones:
+        st.markdown("### 📊 Histórico Finalización Operativa")
 
-            styled_hist = (
-                df_final.style
-                .applymap(color_hist, subset=["Desviación (min)"])
-            )
+        df_hist = pd.DataFrame(st.session_state.finalizaciones).T.sort_index()
 
-            st.dataframe(styled_hist, use_container_width=True)
+        # Orden bonito
+        cols = ["Final Teórico", "Final Real", "Desviación (min)", "Desviación (h)"]
+        df_hist = df_hist[[c for c in cols if c in df_hist.columns]]
+
+        def color_hist(v):
+            if isinstance(v, (int, float)):
+                if v <= 0:
+                    return "background-color:#c6efce"   # 🟢
+                elif v <= 60:
+                    return "background-color:#fff2cc"   # 🟡
+                else:
+                    return "background-color:#ffc7ce"   # 🔴
+            return ""
+
+        st.dataframe(
+            df_hist.style.applymap(color_hist, subset=["Desviación (min)"]) if "Desviación (min)" in df_hist.columns else df_hist,
+            use_container_width=True
+        )
 
         # ================= EXPORTAR =================
         df_export = df.copy()
