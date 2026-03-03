@@ -917,12 +917,12 @@ if pagina == "📊 Fase 4 - Indicadores":
                 datetime.combine(fecha_dt,JORNADA_INICIO)
             ).total_seconds()/60
 
-            for muelle in ["Muelle 1","Muelle 2"]:
+            for muelle in ["Muelle 1","Muelle 2","Contingencia"]:
 
                 citas=[
                     c for c in st.session_state.confirmadas
                     if c["fecha"]==fecha_str and
-                    (c["muelle"]==muelle or (muelle=="Muelle 2" and c["muelle"]=="Contingencia"))
+                    c["muelle"]==muelle
                 ]
 
                 if citas:
@@ -938,7 +938,7 @@ if pagina == "📊 Fase 4 - Indicadores":
                 bloqueos=[
                     b for b in st.session_state.bloqueos
                     if b["fecha"]==fecha_str and
-                    (b["muelle"]==muelle or (muelle=="Muelle 2" and b["muelle"]=="Contingencia"))
+                    c["muelle"]==muelle
                 ]
 
                 tiempo_bloq=sum(
