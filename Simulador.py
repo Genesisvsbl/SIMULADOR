@@ -1039,37 +1039,35 @@ if pagina == "📊 Fase 4 - Indicadores":
             hora_teorica = None
             hora_teorica_str = "Sin operación"
 
-        col1, col2, col3 = st.columns(3)
+        # ================= MOSTRAR FINAL TEÓRICO =================
+        st.metric("Final Teórico", hora_teorica_str)
 
-        with col1:
-            st.metric("Final Teórico", hora_teorica_str)
+        # ================= FORMULARIO (EVITA RELOAD AUTOMÁTICO) =================
+        with st.form(key=f"form_finalizacion_{fecha_sel}"):
 
-        with col2:
             hora_real = st.time_input(
                 "Final Real",
                 key=f"hora_real_{fecha_sel}"
             )
 
-        with col3:
-            guardar = st.button("💾 Guardar")
+            guardar = st.form_submit_button("💾 Guardar")
 
-        # ================= GUARDAR SOLO AL PRESIONAR =================
-        if guardar and hora_teorica:
+            if guardar and hora_teorica:
 
-            hora_teorica_dt = datetime.combine(fecha_dt,hora_teorica)
-            hora_real_dt = datetime.combine(fecha_dt,hora_real)
+                hora_teorica_dt = datetime.combine(fecha_dt,hora_teorica)
+                hora_real_dt = datetime.combine(fecha_dt,hora_real)
 
-            desviacion_min = (
-                hora_real_dt - hora_teorica_dt
-            ).total_seconds()/60
+                desviacion_min = (
+                    hora_real_dt - hora_teorica_dt
+                ).total_seconds()/60
 
-            st.session_state.finalizaciones[fecha_sel] = {
-                "Final Teórico": hora_teorica_str,
-                "Final Real": hora_real.strftime("%H:%M"),
-                "Desviación (min)": round(desviacion_min,1)
-            }
+                st.session_state.finalizaciones[fecha_sel] = {
+                    "Final Teórico": hora_teorica_str,
+                    "Final Real": hora_real.strftime("%H:%M"),
+                    "Desviación (min)": round(desviacion_min,1)
+                }
 
-            st.success("Registro guardado correctamente ✅")
+                st.success("Registro guardado correctamente ✅")
 
         # ================= MOSTRAR INDICADOR SOLO SI YA EXISTE REGISTRO =================
         if fecha_sel in st.session_state.finalizaciones:
