@@ -44,7 +44,16 @@ def serializar():
         "franjas": [
             {**f, "inicio": str(f["inicio"]), "fin": str(f["fin"])}
             for f in st.session_state.franjas
-        ]
+        ],
+        # 🔹 AGREGADO: guardar finalizaciones
+        "finalizaciones": {
+            fecha: {
+                "Final Teórico": str(v["Final Teórico"]),
+                "Final Real": str(v["Final Real"]) if v["Final Real"] else None,
+                "Desviación (min)": v["Desviación (min)"]
+            }
+            for fecha, v in st.session_state.get("finalizaciones", {}).items()
+        }
     }
 
 def deserializar(data):
@@ -66,6 +75,15 @@ def deserializar(data):
          "fin": datetime.strptime(f["fin"], "%H:%M:%S").time()}
         for f in data.get("franjas", [])
     ]
+    # 🔹 AGREGADO: cargar finalizaciones
+    finalizaciones = data.get("finalizaciones", {})
+    st.session_state.finalizaciones = {}
+    for fecha, v in finalizaciones.items():
+        st.session_state.finalizaciones[fecha] = {
+            "Final Teórico": datetime.strptime(v["Final Teórico"], "%H:%M:%S").time() if v["Final Teórico"] != "Sin operación" else None,
+            "Final Real": datetime.strptime(v["Final Real"], "%H:%M:%S").time() if v["Final Real"] else None,
+            "Desviación (min)": v["Desviación (min)"]
+        }
 
 def guardar_datos():
     with open(DATA_FILE, "w") as f:
@@ -91,7 +109,6 @@ def reset_total():
     if os.path.exists(DATA_FILE):
         os.remove(DATA_FILE)
     st.success("Sistema reiniciado completamente")
-
 # ================= SESSION =================
 for k in [
     "necesidades",
