@@ -1011,7 +1011,7 @@ if pagina == "📊 Fase 4 - Indicadores":
 
         st.dataframe(styled_oee, use_container_width=True)
 
-        # ================= FINALIZACIÓN OPERATIVA (COMPACTO) =================
+        # ================= FINALIZACIÓN OPERATIVA (COMPACTO CON COLOR) =================
         st.divider()
         st.subheader("🕓 Finalización Operativa Diaria")
 
@@ -1055,19 +1055,37 @@ if pagina == "📊 Fase 4 - Indicadores":
                 hora_real_dt - hora_teorica_dt
             ).total_seconds()/60
 
+            # ================= INDICADOR VISUAL =================
+            if desviacion_min <= 0:
+                color = "#d4edda"
+                texto = "🟢 Operación dentro o mejor que lo simulado"
+            elif desviacion_min <= 60:
+                color = "#fff3cd"
+                texto = "🟡 Ligera desviación operacional"
+            else:
+                color = "#f8d7da"
+                texto = "🔴 Desviación crítica operativa"
+
             with col3:
                 st.metric(
                     "Desviación (min)",
                     f"{round(desviacion_min,1)} min"
                 )
 
-            # 🔹 Indicador visual simple
-            if desviacion_min <= 0:
-                st.success("Operación dentro o mejor que lo simulado ✅")
-            elif desviacion_min <= 60:
-                st.warning("Ligera desviación operacional ⚠️")
-            else:
-                st.error("Desviación crítica operativa 🚨")
+            st.markdown(
+                f"""
+                <div style="
+                    background-color:{color};
+                    padding:15px;
+                    border-radius:10px;
+                    font-weight:bold;
+                    text-align:center;
+                ">
+                    {texto}
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
         # ================= EXPORTAR =================
         df_export=df.copy()
         df_export.to_excel("reporte_operacion.xlsx")
