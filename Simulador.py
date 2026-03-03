@@ -1009,57 +1009,53 @@ else:
 
 st.metric("Final Teórico", hora_teorica_str)
 
-# Formulario para registrar hora real
-with st.form(key=f"form_finalizacion_{fecha_sel}"):
-    hora_real = st.time_input(
-        "Final Real",
-        value=(datetime.now().time() if not hora_teorica else hora_teorica),
-        key=f"hora_real_{fecha_sel}"
-    )
-    guardar = st.form_submit_button("💾 Guardar")
+# Input de hora real (sin formulario ni botón)
+hora_real = st.time_input(
+    "Final Real",
+    value=(datetime.now().time() if not hora_teorica else hora_teorica),
+    key=f"hora_real_{fecha_sel}"
+)
 
-    if guardar:
-        # Solo calcular desviación si hay hora teórica
-        if hora_teorica:
-            hora_teorica_dt = datetime.combine(fecha_dt, hora_teorica)
-            hora_real_dt = datetime.combine(fecha_dt, hora_real)
-            desviacion_min = (hora_real_dt - hora_teorica_dt).total_seconds() / 60
-        else:
-            desviacion_min = 0
+# Guardar automáticamente en session_state
+if hora_teorica:
+    hora_teorica_dt = datetime.combine(fecha_dt, hora_teorica)
+    hora_real_dt = datetime.combine(fecha_dt, hora_real)
+    desviacion_min = (hora_real_dt - hora_teorica_dt).total_seconds() / 60
+else:
+    desviacion_min = 0
 
-        # Guardar en session_state
-        st.session_state.finalizaciones[fecha_sel] = {
-            "Final Teórico": hora_teorica_str,
-            "Final Real": hora_real.strftime("%H:%M"),
-            "Desviación (min)": round(desviacion_min, 1)
-        }
-        guardar_datos()
-        st.success("Registro guardado correctamente ✅")
+st.session_state.finalizaciones[fecha_sel] = {
+    "Final Teórico": hora_teorica_str,
+    "Final Real": hora_real.strftime("%H:%M"),
+    "Desviación (min)": round(desviacion_min, 1)
+}
+
+# Aquí solo se guarda cuando hagas "Guardar Todo" en tu reporte diario
+# guardar_datos()  <-- no se llama automáticamente
 
 # Mostrar alerta según desviación
-if fecha_sel in st.session_state.finalizaciones:
-    desviacion_min = st.session_state.finalizaciones[fecha_sel]["Desviación (min)"]
-    if desviacion_min <= 0:
-        color = "#d4edda"
-        texto = "🟢 Operación dentro o mejor que lo simulado"
-    elif desviacion_min <= 60:
-        color = "#fff3cd"
-        texto = "🟡 Ligera desviación operacional"
-    else:
-        color = "#f8d7da"
-        texto = "🔴 Desviación crítica operativa"
+desviacion_min = st.session_state.finalizaciones[fecha_sel]["Desviación (min)"]
+if desviacion_min <= 0:
+    color = "#d4edda"
+    texto = "🟢 Operación dentro o mejor que lo simulado"
+elif desviacion_min <= 60:
+    color = "#fff3cd"
+    texto = "🟡 Ligera desviación operacional"
+else:
+    color = "#f8d7da"
+    texto = "🔴 Desviación crítica operativa"
 
-    st.markdown(f"""
-        <div style="
-            background-color:{color};
-            padding:15px;
-            border-radius:10px;
-            font-weight:bold;
-            text-align:center;
-        ">
-            {texto}
-        </div>
-    """, unsafe_allow_html=True)
+st.markdown(f"""
+    <div style="
+        background-color:{color};
+        padding:15px;
+        border-radius:10px;
+        font-weight:bold;
+        text-align:center;
+    ">
+        {texto}
+    </div>
+""", unsafe_allow_html=True)
 
         # ================= TABLA HISTÓRICA SIN TIEMPO DISPONIBLE =================
         st.markdown("### 📊 Histórico Finalización Operativa")
