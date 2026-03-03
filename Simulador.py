@@ -736,6 +736,12 @@ if pagina == "📊 Fase 4 - Indicadores":
     if st.button("📊 Generar reporte diario"):
         st.session_state.reporte_generado = True
 
+    # 🔹 DEFINIR fechas desde todas las confirmadas (necesario para histórico)
+    if st.session_state.confirmadas:
+        fechas = sorted(list(set(c["fecha"] for c in st.session_state.confirmadas)))
+    else:
+        fechas = []
+
     # 🔹 Todo el bloque del reporte va dentro de esta condición
     if st.session_state.reporte_generado:
 
@@ -746,18 +752,13 @@ if pagina == "📊 Fase 4 - Indicadores":
         JORNADA_INICIO = time(6, 0)
         JORNADA_FIN = time(22, 0)
 
-        fechas = sorted(list(set(c["fecha"] for c in st.session_state.confirmadas)))
-
         data = {}
 
         for fecha_str in fechas:
 
             fecha_dt = datetime.strptime(fecha_str, "%Y-%m-%d")
 
-            citas_dia = [
-                c for c in st.session_state.confirmadas
-                if c["fecha"] == fecha_str
-            ]
+            citas_dia = [c for c in st.session_state.confirmadas if c["fecha"] == fecha_str]
 
             jornada_min = (
                 datetime.combine(fecha_dt, JORNADA_FIN) -
@@ -765,16 +766,11 @@ if pagina == "📊 Fase 4 - Indicadores":
             ).total_seconds() / 60
 
             # ================= MUELLE 1 =================
-            m1 = sorted(
-                [c for c in citas_dia if c["muelle"] == "Muelle 1"],
-                key=lambda x: x["inicio"]
-            )
-
+            m1 = sorted([c for c in citas_dia if c["muelle"] == "Muelle 1"], key=lambda x: x["inicio"])
             if m1:
                 ini = m1[0]["inicio"]
                 fin = max(c["fin"] for c in m1)
-                op = (datetime.combine(fecha_dt, fin) -
-                      datetime.combine(fecha_dt, ini)).total_seconds() / 60
+                op = (datetime.combine(fecha_dt, fin) - datetime.combine(fecha_dt, ini)).total_seconds() / 60
             else:
                 op = 0
 
@@ -786,16 +782,12 @@ if pagina == "📊 Fase 4 - Indicadores":
             data.setdefault("Muelle 1", {})[(fecha_str, "% Util")] = util
 
             # ================= MUELLE 2 + CONTINGENCIA =================
-            linea = sorted(
-                [c for c in citas_dia if c["muelle"] in ["Muelle 2", "Contingencia"]],
-                key=lambda x: x["inicio"]
-            )
-
+            linea = sorted([c for c in citas_dia if c["muelle"] in ["Muelle 2", "Contingencia"]],
+                           key=lambda x: x["inicio"])
             if linea:
                 ini = linea[0]["inicio"]
                 fin = max(c["fin"] for c in linea)
-                op = (datetime.combine(fecha_dt, fin) -
-                      datetime.combine(fecha_dt, ini)).total_seconds() / 60
+                op = (datetime.combine(fecha_dt, fin) - datetime.combine(fecha_dt, ini)).total_seconds() / 60
             else:
                 op = 0
 
@@ -811,12 +803,7 @@ if pagina == "📊 Fase 4 - Indicadores":
         # ================= ORDEN COLUMNAS =================
         columnas_ordenadas = []
         for fecha in fechas:
-            columnas_ordenadas += [
-                (fecha, "Tiempo Op"),
-                (fecha, "Tiempo Oc"),
-                (fecha, "% Util")
-            ]
-
+            columnas_ordenadas += [(fecha, "Tiempo Op"), (fecha, "Tiempo Oc"), (fecha, "% Util")]
         df = df[columnas_ordenadas]
 
         # ================= TOTAL =================
@@ -826,7 +813,6 @@ if pagina == "📊 Fase 4 - Indicadores":
                 fila_total[col] = df[col].mean()
             else:
                 fila_total[col] = df[col].sum()
-
         df.loc["TOTAL"] = fila_total
 
         # ================= ALERTAS =================
@@ -857,12 +843,8 @@ if pagina == "📊 Fase 4 - Indicadores":
         styled = (
             df.style
             .format({col: "{:.1%}" for col in df.columns if col[1] == "% Util"})
-            .applymap(
-                color_util,
-                subset=pd.IndexSlice[:, df.columns.get_level_values(1) == "% Util"]
-            )
+            .applymap(color_util, subset=pd.IndexSlice[:, df.columns.get_level_values(1) == "% Util"])
         )
-
         st.dataframe(styled, use_container_width=True)
 
         # ================= GRAFICAS OPERATIVAS =================
@@ -882,29 +864,13 @@ if pagina == "📊 Fase 4 - Indicadores":
                 op_plot.append(df_plot.loc[muelle][(fecha, "Tiempo Op")])
                 oc_plot.append(df_plot.loc[muelle][(fecha, "Tiempo Oc")])
 
-            fig_util = px.line(
-                x=fechas_plot,
-                y=util_plot,
-                markers=True,
-                title=f"Utilización {muelle}"
-            )
+            fig_util = px.line(x=fechas_plot, y=util_plot, markers=True, title=f"Utilización {muelle}")
             fig_util.update_yaxes(tickformat=".0%")
             st.plotly_chart(fig_util, use_container_width=True)
 
-            df_bar = pd.DataFrame({
-                "Fecha": fechas_plot,
-                "Operativo": op_plot,
-                "Ocio": oc_plot
-            })
-
-            fig_bar = px.bar(
-                df_bar,
-                x="Fecha",
-                y=["Operativo", "Ocio"],
-                barmode="group",
-                title=f"Tiempo Operativo vs Ocio — {muelle}"
-            )
-
+            df_bar = pd.DataFrame({"Fecha": fechas_plot, "Operativo": op_plot, "Ocio": oc_plot})
+            fig_bar = px.bar(df_bar, x="Fecha", y=["Operativo", "Ocio"], barmode="group",
+                             title=f"Tiempo Operativo vs Ocio — {muelle}")
             st.plotly_chart(fig_bar, use_container_width=True)
 
         # ================= KPI OEE LOGÍSTICO =================
@@ -917,71 +883,37 @@ if pagina == "📊 Fase 4 - Indicadores":
         for fecha_str in fechas:
 
             fecha_dt = datetime.strptime(fecha_str, "%Y-%m-%d")
+            jornada_min = (datetime.combine(fecha_dt, JORNADA_FIN) - datetime.combine(fecha_dt, JORNADA_INICIO)).total_seconds() / 60
 
-            jornada_min = (
-                datetime.combine(fecha_dt, JORNADA_FIN) -
-                datetime.combine(fecha_dt, JORNADA_INICIO)
-            ).total_seconds() / 60
-
-            # ================= DEFINICIÓN DE LÍNEAS =================
-            lineas = {
-                "Muelle 1": ["Muelle 1"],
-                "Muelle 2 + Contingencia": ["Muelle 2", "Contingencia"]
-            }
+            lineas = {"Muelle 1": ["Muelle 1"], "Muelle 2 + Contingencia": ["Muelle 2", "Contingencia"]}
 
             for nombre_linea, muelles_asociados in lineas.items():
 
-                # ================= CITAS =================
-                citas = [
-                    c for c in st.session_state.confirmadas
-                    if c["fecha"] == fecha_str and
-                    c["muelle"] in muelles_asociados
-                ]
+                citas = [c for c in st.session_state.confirmadas if c["fecha"] == fecha_str and c["muelle"] in muelles_asociados]
 
                 if citas:
                     ini = min(c["inicio"] for c in citas)
                     fin = max(c["fin"] for c in citas)
-
-                    op = (
-                        datetime.combine(fecha_dt, fin) -
-                        datetime.combine(fecha_dt, ini)
-                    ).total_seconds() / 60
-
+                    op = (datetime.combine(fecha_dt, fin) - datetime.combine(fecha_dt, ini)).total_seconds() / 60
                     hora_fin_operacion = fin.strftime("%H:%M")
-
                 else:
                     op = 0
                     hora_fin_operacion = "Sin operación"
 
-                # Guardamos hora fin por día
                 resumen_fin_operacion.setdefault(fecha_str, {})
                 resumen_fin_operacion[fecha_str][nombre_linea] = hora_fin_operacion
 
-                # ================= BLOQUEOS =================
                 if "bloqueos" in st.session_state:
-                    bloqueos = [
-                        b for b in st.session_state.bloqueos
-                        if b["fecha"] == fecha_str and
-                        b["muelle"] in muelles_asociados
-                    ]
+                    bloqueos = [b for b in st.session_state.bloqueos if b["fecha"] == fecha_str and b["muelle"] in muelles_asociados]
                 else:
                     bloqueos = []
 
-                tiempo_bloq = sum(
-                    (
-                        datetime.combine(fecha_dt, b["fin"]) -
-                        datetime.combine(fecha_dt, b["inicio"])
-                    ).total_seconds() / 60
-                    for b in bloqueos
-                )
+                tiempo_bloq = sum((datetime.combine(fecha_dt, b["fin"]) - datetime.combine(fecha_dt, b["inicio"])).total_seconds() / 60 for b in bloqueos)
 
-                # ================= CÁLCULOS OEE =================
                 disponible = max(jornada_min - tiempo_bloq, 0)
-
                 disponibilidad = disponible / jornada_min if jornada_min > 0 else 0
                 rendimiento = op / disponible if disponible > 0 else 0
                 utilizacion = op / jornada_min if jornada_min > 0 else 0
-
                 oee = disponibilidad * rendimiento * utilizacion
 
                 oee_data.setdefault(nombre_linea, {})[(fecha_str, "Disponibilidad")] = disponibilidad
@@ -990,16 +922,9 @@ if pagina == "📊 Fase 4 - Indicadores":
                 oee_data.setdefault(nombre_linea, {})[(fecha_str, "OEE")] = oee
 
         df_oee = pd.DataFrame(oee_data).T
-
         col_ord = []
         for fecha in fechas:
-            col_ord += [
-                (fecha, "Disponibilidad"),
-                (fecha, "Rendimiento"),
-                (fecha, "Utilización"),
-                (fecha, "OEE")
-            ]
-
+            col_ord += [(fecha, "Disponibilidad"), (fecha, "Rendimiento"), (fecha, "Utilización"), (fecha, "OEE")]
         df_oee = df_oee[col_ord]
 
         def color_oee(v):
@@ -1013,29 +938,18 @@ if pagina == "📊 Fase 4 - Indicadores":
             return ""
 
         styled_oee = df_oee.style.format("{:.1%}").applymap(color_oee)
-
         st.dataframe(styled_oee, use_container_width=True)
 
-        # ================= FINALIZACIÓN OPERATIVA (GUARDADO + HISTÓRICO) =================
+        # ================= FINALIZACIÓN OPERATIVA =================
         st.divider()
         st.subheader("🕓 Finalización Operativa Diaria")
 
-        # 🔹 Inicializar almacenamiento si no existe
         if "finalizaciones" not in st.session_state:
             st.session_state.finalizaciones = {}
 
-        # 🔹 Selector de fecha
-        fecha_sel = st.selectbox(
-            "Seleccionar fecha",
-            fechas
-        )
-
+        fecha_sel = st.selectbox("Seleccionar fecha", fechas)
         fecha_dt = datetime.strptime(fecha_sel, "%Y-%m-%d")
-
-        citas_dia = [
-            c for c in st.session_state.confirmadas
-            if c["fecha"] == fecha_sel
-        ]
+        citas_dia = [c for c in st.session_state.confirmadas if c["fecha"] == fecha_sel]
 
         if citas_dia:
             hora_teorica = max(c["fin"] for c in citas_dia)
@@ -1044,41 +958,25 @@ if pagina == "📊 Fase 4 - Indicadores":
             hora_teorica = None
             hora_teorica_str = "Sin operación"
 
-        # ================= MOSTRAR FINAL TEÓRICO =================
         st.metric("Final Teórico", hora_teorica_str)
 
-        # ================= FORMULARIO (EVITA RELOAD AUTOMÁTICO) =================
         with st.form(key=f"form_finalizacion_{fecha_sel}"):
-
-            hora_real = st.time_input(
-                "Final Real",
-                key=f"hora_real_{fecha_sel}"
-            )
-
+            hora_real = st.time_input("Final Real", key=f"hora_real_{fecha_sel}")
             guardar = st.form_submit_button("💾 Guardar")
 
             if guardar and hora_teorica:
-
                 hora_teorica_dt = datetime.combine(fecha_dt, hora_teorica)
                 hora_real_dt = datetime.combine(fecha_dt, hora_real)
-
-                desviacion_min = (
-                    hora_real_dt - hora_teorica_dt
-                ).total_seconds() / 60
-
+                desviacion_min = (hora_real_dt - hora_teorica_dt).total_seconds() / 60
                 st.session_state.finalizaciones[fecha_sel] = {
                     "Final Teórico": hora_teorica_str,
                     "Final Real": hora_real.strftime("%H:%M"),
                     "Desviación (min)": round(desviacion_min, 1)
                 }
-
                 st.success("Registro guardado correctamente ✅")
 
-        # ================= MOSTRAR INDICADOR SOLO SI YA EXISTE REGISTRO =================
         if fecha_sel in st.session_state.finalizaciones:
-
             desviacion_min = st.session_state.finalizaciones[fecha_sel]["Desviación (min)"]
-
             if desviacion_min <= 0:
                 color = "#d4edda"
                 texto = "🟢 Operación dentro o mejor que lo simulado"
@@ -1089,8 +987,7 @@ if pagina == "📊 Fase 4 - Indicadores":
                 color = "#f8d7da"
                 texto = "🔴 Desviación crítica operativa"
 
-            st.markdown(
-                f"""
+            st.markdown(f"""
                 <div style="
                     background-color:{color};
                     padding:15px;
@@ -1100,93 +997,56 @@ if pagina == "📊 Fase 4 - Indicadores":
                 ">
                     {texto}
                 </div>
-                """,
-                unsafe_allow_html=True
-            )
+            """, unsafe_allow_html=True)
 
-    # ================= TABLA HISTÓRICA =================
-    st.markdown("### 📊 Histórico Finalización Operativa")
+        # ================= TABLA HISTÓRICA SIN TIEMPO DISPONIBLE =================
+        st.markdown("### 📊 Histórico Finalización Operativa")
 
-    JORNADA_FIN = time(22, 0)
+        historico_data = []
 
-    historico_data = []
+        for fecha in fechas:
+            fecha_dt_temp = datetime.strptime(fecha, "%Y-%m-%d")
+            citas_temp = [c for c in st.session_state.confirmadas if c["fecha"] == fecha]
 
-    for fecha in fechas:
-
-        fecha_dt_temp = datetime.strptime(fecha, "%Y-%m-%d")
-
-        citas_temp = [
-            c for c in st.session_state.confirmadas
-            if c["fecha"] == fecha
-        ]
-
-        # 🔹 Calcular Final Teórico
-        if citas_temp:
-            hora_teo = max(c["fin"] for c in citas_temp)
-            hora_teo_str = hora_teo.strftime("%H:%M")
-        else:
-            hora_teo = None
-            hora_teo_str = "Sin operación"
-
-        # 🔹 Si existe registro guardado
-        if fecha in st.session_state.finalizaciones:
-
-            real_str = st.session_state.finalizaciones[fecha]["Final Real"]
-            desviacion = st.session_state.finalizaciones[fecha]["Desviación (min)"]
-
-            hora_real_dt = datetime.combine(
-                fecha_dt_temp,
-                datetime.strptime(real_str, "%H:%M").time()
-            )
-
-            jornada_fin_dt = datetime.combine(fecha_dt_temp, JORNADA_FIN)
-
-            tiempo_disponible_min = (
-                jornada_fin_dt - hora_real_dt
-            ).total_seconds() / 60
-
-            tiempo_disponible_horas = round(tiempo_disponible_min / 60, 2)
-
-        else:
-            real_str = ""
-            desviacion = ""
-            tiempo_disponible_horas = ""
-
-        historico_data.append({
-            "Fecha": fecha,
-            "Final Teórico": hora_teo_str,
-            "Final Real": real_str,
-            "Desviación (min)": desviacion,
-            "Tiempo Disponible (hrs)": tiempo_disponible_horas
-        })
-
-    df_final = pd.DataFrame(historico_data)
-    df_final = df_final.sort_values("Fecha")
-
-    def color_hist(v):
-        if isinstance(v, (int, float)):
-            if v <= 0:
-                return "background-color:#c6efce"
-            elif v <= 60:
-                return "background-color:#fff2cc"
+            if citas_temp:
+                hora_teo = max(c["fin"] for c in citas_temp)
+                hora_teo_str = hora_teo.strftime("%H:%M")
             else:
-                return "background-color:#ffc7ce"
-        return ""
+                hora_teo_str = "Sin operación"
 
-    styled_hist = (
-        df_final.style
-        .applymap(color_hist, subset=["Desviación (min)"])
-    )
+            if fecha in st.session_state.finalizaciones:
+                real_str = st.session_state.finalizaciones[fecha]["Final Real"]
+                desviacion = st.session_state.finalizaciones[fecha]["Desviación (min)"]
+            else:
+                real_str = ""
+                desviacion = ""
 
-    st.dataframe(styled_hist, use_container_width=True)
+            historico_data.append({
+                "Fecha": fecha,
+                "Final Teórico": hora_teo_str,
+                "Final Real": real_str,
+                "Desviación (min)": desviacion
+            })
 
-    # ================= EXPORTAR =================
-    df_export = df.copy()
-    df_export.to_excel("reporte_operacion.xlsx")
+        df_final = pd.DataFrame(historico_data)
+        df_final = df_final.sort_values("Fecha")
 
-    with open("reporte_operacion.xlsx", "rb") as f:
-        st.download_button(
-            "📥 Descargar Excel",
-            data=f,
-            file_name="reporte_operacion.xlsx"
-        )
+        def color_hist(v):
+            if isinstance(v, (int, float)):
+                if v <= 0:
+                    return "background-color:#c6efce"
+                elif v <= 60:
+                    return "background-color:#fff2cc"
+                else:
+                    return "background-color:#ffc7ce"
+            return ""
+
+        styled_hist = df_final.style.applymap(color_hist, subset=["Desviación (min)"])
+        st.dataframe(styled_hist, use_container_width=True)
+
+        # ================= EXPORTAR =================
+        df_export = df.copy()
+        df_export.to_excel("reporte_operacion.xlsx")
+
+        with open("reporte_operacion.xlsx", "rb") as f:
+            st.download_button("📥 Descargar Excel", data=f, file_name="reporte_operacion.xlsx")
