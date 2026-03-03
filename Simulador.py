@@ -1011,99 +1011,63 @@ if pagina == "📊 Fase 4 - Indicadores":
 
         st.dataframe(styled_oee, use_container_width=True)
 
-        # ================= HORA FIN OPERACIÓN GLOBAL =================
-        st.markdown("## 🕓 Hora Finalización Global por Día")
+        # ================= FINALIZACIÓN OPERATIVA (COMPACTO) =================
+        st.divider()
+        st.subheader("🕓 Finalización Operativa Diaria")
 
-        resumen_global = {}
+        # 🔹 Selector de fecha
+        fecha_sel = st.selectbox(
+            "Seleccionar fecha",
+            fechas
+        )
 
-        for fecha_str in fechas:
+        fecha_dt = datetime.strptime(fecha_sel,"%Y-%m-%d")
 
-            fecha_dt = datetime.strptime(fecha_str,"%Y-%m-%d")
+        citas_dia = [
+            c for c in st.session_state.confirmadas
+            if c["fecha"] == fecha_sel
+        ]
 
-            citas_dia = [
-                c for c in st.session_state.confirmadas
-                if c["fecha"] == fecha_str
-            ]
+        if citas_dia:
+            hora_teorica = max(c["fin"] for c in citas_dia)
+            hora_teorica_str = hora_teorica.strftime("%H:%M")
+        else:
+            hora_teorica = None
+            hora_teorica_str = "Sin operación"
 
-            if citas_dia:
-                hora_fin = max(c["fin"] for c in citas_dia)
-                hora_fin_str = hora_fin.strftime("%H:%M")
-            else:
-                hora_fin = None
-                hora_fin_str = "Sin operación"
+        col1, col2, col3 = st.columns(3)
 
-            resumen_global[fecha_str] = {
-                "Final Teórico": hora_fin_str
-            }
+        with col1:
+            st.metric("Final Teórico", hora_teorica_str)
 
-        df_fin = pd.DataFrame(resumen_global).T
-
-        # ================= INGRESO HORA REAL =================
-        st.markdown("### ✏️ Ingresar Hora Final Real")
-
-        indicador_data = {}
-
-        for fecha_str in fechas:
-
-            col1, col2 = st.columns(2)
-
-            with col1:
-                st.write(f"📅 {fecha_str}")
-                st.write(f"Final Teórico: {df_fin.loc[fecha_str,'Final Teórico']}")
-
-            with col2:
-                hora_real = st.time_input(
-                    f"Hora real {fecha_str}",
-                    key=f"hora_real_{fecha_str}"
-                )
-
-            # ================= NUEVO INDICADOR =================
-            if df_fin.loc[fecha_str,'Final Teórico'] != "Sin operación":
-
-                hora_teorica_dt = datetime.combine(
-                    datetime.strptime(fecha_str,"%Y-%m-%d"),
-                    datetime.strptime(
-                        df_fin.loc[fecha_str,'Final Teórico'],
-                        "%H:%M"
-                    ).time()
-                )
-
-                hora_real_dt = datetime.combine(
-                    datetime.strptime(fecha_str,"%Y-%m-%d"),
-                    hora_real
-                )
-
-                diferencia_min = (
-                    hora_real_dt - hora_teorica_dt
-                ).total_seconds() / 60
-
-                indicador_data[fecha_str] = {
-                    "Final Teórico": df_fin.loc[fecha_str,'Final Teórico'],
-                    "Final Real": hora_real.strftime("%H:%M"),
-                    "Desviación (min)": round(diferencia_min,1)
-                }
-
-        if indicador_data:
-            st.markdown("## 📊 Indicador Desviación Operativa")
-
-            df_indicador = pd.DataFrame(indicador_data).T
-
-            def color_desv(v):
-                if isinstance(v,(int,float)):
-                    if v <= 0:
-                        return "background-color:#c6efce"
-                    elif v <= 60:
-                        return "background-color:#fff2cc"
-                    else:
-                        return "background-color:#ffc7ce"
-                return ""
-
-            styled_ind = (
-                df_indicador.style
-                .applymap(color_desv, subset=["Desviación (min)"])
+        with col2:
+            hora_real = st.time_input(
+                "Final Real",
+                key="hora_real_unica"
             )
 
-            st.dataframe(styled_ind, use_container_width=True)
+        if hora_teorica:
+
+            hora_teorica_dt = datetime.combine(fecha_dt,hora_teorica)
+            hora_real_dt = datetime.combine(fecha_dt,hora_real)
+
+            desviacion_min = (
+                hora_real_dt - hora_teorica_dt
+            ).total_seconds()/60
+
+            with col3:
+                st.metric(
+                    "Desviación (min)",
+                    f"{round(desviacion_min,1)} min"
+                )
+
+            # 🔹 Indicador visual simple
+            if desviacion_min <= 0:
+                st.success("Operación dentro o mejor que lo simulado ✅")
+            elif desviacion_min <= 60:
+                st.warning("Ligera desviación operacional ⚠️")
+            else:
+                st.error("Desviación crítica operativa 🚨")
         # ================= EXPORTAR =================
         df_export=df.copy()
         df_export.to_excel("reporte_operacion.xlsx")
