@@ -1011,90 +1011,120 @@ if pagina == "📊 Fase 4 - Indicadores":
 
         st.dataframe(styled_oee, use_container_width=True)
 
-# ================= FINALIZACIÓN OPERATIVA (CON BOTÓN GUARDAR) =================
-st.divider()
-st.subheader("🕓 Finalización Operativa Diaria")
+        # ================= FINALIZACIÓN OPERATIVA (GUARDADO + HISTÓRICO) =================
+        st.divider()
+        st.subheader("🕓 Finalización Operativa Diaria")
 
-# 🔹 Inicializar almacenamiento
-if "finalizaciones" not in st.session_state:
-    st.session_state.finalizaciones = {}
+        # 🔹 Inicializar almacenamiento si no existe
+        if "finalizaciones" not in st.session_state:
+            st.session_state.finalizaciones = {}
 
-# 🔹 Selector de fecha
-fecha_sel = st.selectbox(
-    "Seleccionar fecha",
-    fechas
-)
+        # 🔹 Selector de fecha
+        fecha_sel = st.selectbox(
+            "Seleccionar fecha",
+            fechas
+        )
 
-fecha_dt = datetime.strptime(fecha_sel,"%Y-%m-%d")
+        fecha_dt = datetime.strptime(fecha_sel,"%Y-%m-%d")
 
-citas_dia = [
-    c for c in st.session_state.confirmadas
-    if c["fecha"] == fecha_sel
-]
+        citas_dia = [
+            c for c in st.session_state.confirmadas
+            if c["fecha"] == fecha_sel
+        ]
 
-if citas_dia:
-    hora_teorica = max(c["fin"] for c in citas_dia)
-    hora_teorica_str = hora_teorica.strftime("%H:%M")
-else:
-    hora_teorica = None
-    hora_teorica_str = "Sin operación"
+        if citas_dia:
+            hora_teorica = max(c["fin"] for c in citas_dia)
+            hora_teorica_str = hora_teorica.strftime("%H:%M")
+        else:
+            hora_teorica = None
+            hora_teorica_str = "Sin operación"
 
-col1, col2, col3 = st.columns(3)
+        col1, col2, col3 = st.columns(3)
 
-with col1:
-    st.metric("Final Teórico", hora_teorica_str)
+        with col1:
+            st.metric("Final Teórico", hora_teorica_str)
 
-with col2:
-    hora_real = st.time_input(
-        "Final Real",
-        key=f"hora_real_{fecha_sel}"
-    )
+        with col2:
+            hora_real = st.time_input(
+                "Final Real",
+                key=f"hora_real_{fecha_sel}"
+            )
 
-with col3:
-    guardar = st.button("💾 Guardar")
+        with col3:
+            guardar = st.button("💾 Guardar")
 
-# ================= GUARDAR SOLO AL PRESIONAR =================
-if guardar and hora_teorica:
+        # ================= GUARDAR SOLO AL PRESIONAR =================
+        if guardar and hora_teorica:
 
-    hora_teorica_dt = datetime.combine(fecha_dt,hora_teorica)
-    hora_real_dt = datetime.combine(fecha_dt,hora_real)
+            hora_teorica_dt = datetime.combine(fecha_dt,hora_teorica)
+            hora_real_dt = datetime.combine(fecha_dt,hora_real)
 
-    desviacion_min = (
-        hora_real_dt - hora_teorica_dt
-    ).total_seconds()/60
+            desviacion_min = (
+                hora_real_dt - hora_teorica_dt
+            ).total_seconds()/60
 
-    st.session_state.finalizaciones[fecha_sel] = {
-        "Final Teórico": hora_teorica_str,
-        "Final Real": hora_real.strftime("%H:%M"),
-        "Desviación (min)": round(desviacion_min,1)
-    }
+            st.session_state.finalizaciones[fecha_sel] = {
+                "Final Teórico": hora_teorica_str,
+                "Final Real": hora_real.strftime("%H:%M"),
+                "Desviación (min)": round(desviacion_min,1)
+            }
 
-    st.success("Registro guardado correctamente ✅")
+            st.success("Registro guardado correctamente ✅")
 
-# ================= TABLA HISTÓRICA =================
-if st.session_state.finalizaciones:
+        # ================= MOSTRAR INDICADOR SOLO SI YA EXISTE REGISTRO =================
+        if fecha_sel in st.session_state.finalizaciones:
 
-    st.markdown("### 📊 Histórico Finalización Operativa")
+            desviacion_min = st.session_state.finalizaciones[fecha_sel]["Desviación (min)"]
 
-    df_final = pd.DataFrame(st.session_state.finalizaciones).T
-    df_final = df_final.sort_index()
-
-    def color_hist(v):
-        if isinstance(v,(int,float)):
-            if v <= 0:
-                return "background-color:#c6efce"
-            elif v <= 60:
-                return "background-color:#fff2cc"
+            if desviacion_min <= 0:
+                color = "#d4edda"
+                texto = "🟢 Operación dentro o mejor que lo simulado"
+            elif desviacion_min <= 60:
+                color = "#fff3cd"
+                texto = "🟡 Ligera desviación operacional"
             else:
-                return "background-color:#ffc7ce"
-        return ""
+                color = "#f8d7da"
+                texto = "🔴 Desviación crítica operativa"
 
-    styled_hist = (
-        df_final.style
-        .applymap(color_hist, subset=["Desviación (min)"])
-    )
+            st.markdown(
+                f"""
+                <div style="
+                    background-color:{color};
+                    padding:15px;
+                    border-radius:10px;
+                    font-weight:bold;
+                    text-align:center;
+                ">
+                    {texto}
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
 
-    st.dataframe(styled_hist, use_container_width=True)
+        # ================= TABLA HISTÓRICA =================
+        if st.session_state.finalizaciones:
+
+            st.markdown("### 📊 Histórico Finalización Operativa")
+
+            df_final = pd.DataFrame(st.session_state.finalizaciones).T
+            df_final = df_final.sort_index()
+
+            def color_hist(v):
+                if isinstance(v,(int,float)):
+                    if v <= 0:
+                        return "background-color:#c6efce"
+                    elif v <= 60:
+                        return "background-color:#fff2cc"
+                    else:
+                        return "background-color:#ffc7ce"
+                return ""
+
+            styled_hist = (
+                df_final.style
+                .applymap(color_hist, subset=["Desviación (min)"])
+            )
+
+            st.dataframe(styled_hist, use_container_width=True)
         # ================= EXPORTAR =================
         df_export=df.copy()
         df_export.to_excel("reporte_operacion.xlsx")
