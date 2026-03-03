@@ -33,19 +33,21 @@ DATA_FILE = "simulador_data.json"
 
 def serializar():
     return {
+        "necesidades": st.session_state.get("necesidades", []),
         "confirmadas": [
             {**c, "inicio": str(c["inicio"]), "fin": str(c["fin"])}
-            for c in st.session_state.confirmadas
+            for c in st.session_state.get("confirmadas", [])
         ],
+        "no_programadas": st.session_state.get("no_programadas", []),
         "bloqueos": [
             {**b, "inicio": str(b["inicio"]), "fin": str(b["fin"])}
-            for b in st.session_state.bloqueos
+            for b in st.session_state.get("bloqueos", [])
         ],
         "franjas": [
             {**f, "inicio": str(f["inicio"]), "fin": str(f["fin"])}
-            for f in st.session_state.franjas
+            for f in st.session_state.get("franjas", [])
         ],
-        # 🔹 AGREGADO: guardar finalizaciones
+        "ejecutados": st.session_state.get("ejecutados", []),
         "finalizaciones": {
             fecha: {
                 "Final Teórico": str(v["Final Teórico"]),
