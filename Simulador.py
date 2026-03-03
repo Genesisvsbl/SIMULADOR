@@ -1105,30 +1105,81 @@ if pagina == "📊 Fase 4 - Indicadores":
                 unsafe_allow_html=True
             )
 
-        # ================= TABLA HISTÓRICA =================
-        if st.session_state.finalizaciones:
+# ================= TABLA HISTÓRICA =================
+st.markdown("### 📊 Histórico Finalización Operativa")
 
-            st.markdown("### 📊 Histórico Finalización Operativa")
+JORNADA_FIN = time(22,0)
 
-            df_final = pd.DataFrame(st.session_state.finalizaciones).T
-            df_final = df_final.sort_index()
+historico_data = []
 
-            def color_hist(v):
-                if isinstance(v,(int,float)):
-                    if v <= 0:
-                        return "background-color:#c6efce"
-                    elif v <= 60:
-                        return "background-color:#fff2cc"
-                    else:
-                        return "background-color:#ffc7ce"
-                return ""
+for fecha in fechas:
 
-            styled_hist = (
-                df_final.style
-                .applymap(color_hist, subset=["Desviación (min)"])
-            )
+    fecha_dt_temp = datetime.strptime(fecha,"%Y-%m-%d")
 
-            st.dataframe(styled_hist, use_container_width=True)
+    citas_temp = [
+        c for c in st.session_state.confirmadas
+        if c["fecha"] == fecha
+    ]
+
+    # 🔹 Calcular Final Teórico
+    if citas_temp:
+        hora_teo = max(c["fin"] for c in citas_temp)
+        hora_teo_str = hora_teo.strftime("%H:%M")
+    else:
+        hora_teo = None
+        hora_teo_str = "Sin operación"
+
+    # 🔹 Si existe registro guardado
+    if fecha in st.session_state.finalizaciones:
+
+        real_str = st.session_state.finalizaciones[fecha]["Final Real"]
+        desviacion = st.session_state.finalizaciones[fecha]["Desviación (min)"]
+
+        hora_real_dt = datetime.combine(
+            fecha_dt_temp,
+            datetime.strptime(real_str,"%H:%M").time()
+        )
+
+        jornada_fin_dt = datetime.combine(fecha_dt_temp,JORNADA_FIN)
+
+        tiempo_disponible_min = (
+            jornada_fin_dt - hora_real_dt
+        ).total_seconds()/60
+
+        tiempo_disponible_horas = round(tiempo_disponible_min/60,2)
+
+    else:
+        real_str = ""
+        desviacion = ""
+        tiempo_disponible_horas = ""
+
+    historico_data.append({
+        "Fecha": fecha,
+        "Final Teórico": hora_teo_str,
+        "Final Real": real_str,
+        "Desviación (min)": desviacion,
+        "Tiempo Disponible (hrs)": tiempo_disponible_horas
+    })
+
+df_final = pd.DataFrame(historico_data)
+df_final = df_final.sort_values("Fecha")
+
+def color_hist(v):
+    if isinstance(v,(int,float)):
+        if v <= 0:
+            return "background-color:#c6efce"
+        elif v <= 60:
+            return "background-color:#fff2cc"
+        else:
+            return "background-color:#ffc7ce"
+    return ""
+
+styled_hist = (
+    df_final.style
+    .applymap(color_hist, subset=["Desviación (min)"])
+)
+
+st.dataframe(styled_hist, use_container_width=True)
         # ================= EXPORTAR =================
         df_export=df.copy()
         df_export.to_excel("reporte_operacion.xlsx")
