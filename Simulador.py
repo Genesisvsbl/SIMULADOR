@@ -457,11 +457,12 @@ if pagina == "📅 Fase 3 - Simulación":
             if not asignado:
                 st.session_state.no_programadas.append(nec)
 
-        # -------- BALANCE / RESCATE A CONTINGENCIA --------
+        # -------- BALANCEO POR HORA DE FINALIZACIÓN (NIVELAR M1 vs CONT Y TERMINAR MÁS TEMPRANO) --------
         # ✅ Reglas:
-        # - Si M2 tiene citas: Contingencia abre desde fin_m2 y se balancea vs Muelle 1
-        # - Si M2 NO tiene nada: Contingencia abre desde 06:00 y se balancea vs Muelle 1
-        # - Siempre respeta bloqueos/franjas/citas vía conflicto()
+        # - Si M2 tiene citas: Contingencia solo puede operar desde fin_m2
+        # - Si M2 NO tiene nada: Contingencia puede operar desde 06:00 (balance M1 vs Cont)
+        # - Respeta SIEMPRE bloqueos/franjas/citas (conflicto y conflicto_excluyendo)
+        # - Balanceo bidireccional: puede mover M1 -> Cont o Cont -> M1 si reduce el FIN MÁXIMO del sistema (makespan)
         muelle_m1 = "Muelle 1"
         muelle_m2 = "Muelle 2"
         muelle_cont = "Contingencia"
@@ -482,89 +483,154 @@ if pagina == "📅 Fase 3 - Simulación":
                 horas = [c["fin"] for c in citas_muelle(muelle)]
                 return max(horas) if horas else None
 
-            def carga_total(muelle):
-                total = 0
-                for c in citas_muelle(muelle):
-                    total += int(
-                        (
-                            datetime.combine(fecha_dt, c["fin"]) -
-                            datetime.combine(fecha_dt, c["inicio"])
-                        ).total_seconds() / 60
-                    )
-                return total
-
-            # ✅ base de contingencia según escenario
+            # ✅ base Contingencia según escenario (M2 manda)
             fin_m2 = ultima_hora(muelle_m2)
-            base_cont = datetime.combine(fecha_dt, fin_m2) if fin_m2 else datetime.combine(fecha_dt, time(6, 0))
+            base_cont_dt = datetime.combine(fecha_dt, fin_m2) if fin_m2 else datetime.combine(fecha_dt, time(6, 0))
 
-            def primer_slot_disponible(muelle, inicio_base_dt, duracion_min):
+            # ---- conflicto local que EXCLUYE una cita (para poder reubicarla sin chocar consigo misma) ----
+            def conflicto_excluyendo(fecha, ini, fin, muelle, excluir_id):
+
+                # FRANJA (si existe); si no, jornada por defecto
+                fr_ok = False
+                for f in st.session_state.franjas:
+                    if f["fecha"] == fecha and f["muelle"] == muelle:
+                        fr_ok = True
+                        if ini < f["inicio"] or fin > f["fin"]:
+                            return True
+                        break
+                if not fr_ok:
+                    if ini < time(6, 0) or fin > time(22, 0):
+                        return True
+
+                # CITAS (excepto la que estoy moviendo)
+                for c in st.session_state.confirmadas:
+                    if c["fecha"] == fecha and c["muelle"] == muelle and int(c["id"]) != int(excluir_id):
+                        if not (fin <= c["inicio"] or ini >= c["fin"]):
+                            return True
+
+                # BLOQUEOS
+                for b in st.session_state.bloqueos:
+                    if b["fecha"] == fecha and b["muelle"] == muelle:
+                        if not (fin <= b["inicio"] or ini >= b["fin"]):
+                            return True
+
+                return False
+
+            # ✅ buscar el PRIMER slot factible (desde un inicio_base) para reubicar una cita
+            def primer_slot_disponible_excluyendo(muelle, inicio_base_dt, duracion_min, excluir_id):
+
                 franja = obtener_franja(fecha_str, muelle)
 
                 inicio_dt = max(datetime.combine(fecha_dt, franja["inicio"]), inicio_base_dt)
                 fin_franja = datetime.combine(fecha_dt, franja["fin"])
 
                 while inicio_dt + timedelta(minutes=duracion_min) <= fin_franja:
+
                     fin_dt = inicio_dt + timedelta(minutes=duracion_min)
 
-                    if not conflicto(fecha_str, inicio_dt.time(), fin_dt.time(), muelle):
+                    if not conflicto_excluyendo(fecha_str, inicio_dt.time(), fin_dt.time(), muelle, excluir_id):
                         return inicio_dt, fin_dt
 
                     inicio_dt += timedelta(minutes=5)
 
                 return None, None
 
-            # ✅ 1) RESCATE DE NO_PROGRAMADAS (M1 -> CONT) SOLO SI AYUDA A BALANCEAR
+            # ✅ utilidad: recalcular fin de muelle después de mover 1 cita (simulación rápida)
+            def fin_muelle_simulado(muelle, mover_id=None, nuevo_ini=None, nuevo_fin=None):
+                fins = []
+                for c in st.session_state.confirmadas:
+                    if c["fecha"] != fecha_str:
+                        continue
+                    if c["muelle"] != muelle:
+                        continue
+                    if mover_id is not None and int(c["id"]) == int(mover_id):
+                        fins.append(nuevo_fin)
+                    else:
+                        fins.append(c["fin"])
+                return max(fins) if fins else None
+
+            # ✅ 0) Si hay NO_PROGRAMADAS de M1, intentar programarlas en CONT o M1 con criterio de "terminar más temprano"
+            #     (CONT solo desde base_cont_dt)
             pendientes = [n for n in st.session_state.no_programadas if n["fecha"] == fecha_str and n["muelle"] == muelle_m1]
             pendientes = sorted(pendientes, key=lambda x: x["duracion"])
-
-            nuevos_programados = []
+            rescatadas = []
 
             for nec in pendientes:
 
-                carga_m1 = carga_total(muelle_m1)
-                carga_cont = carga_total(muelle_cont)
-
-                # ✅ condición de balance (si Cont ya está igual o más cargado, no meto más)
-                if carga_cont >= carga_m1 - 30:
-                    break
-
                 dur = nec["duracion"]
-                ini_new, fin_new = primer_slot_disponible(muelle_cont, base_cont, dur)
 
-                if ini_new is None:
-                    break
+                # intentos: primero M1 (si cabe), luego Cont (si cabe desde base)
+                mejores = []
+
+                # intento M1
+                ini1, fin1 = primer_slot_disponible_excluyendo(muelle_m1, datetime.combine(fecha_dt, time(6, 0)), dur, excluir_id=-999999)
+                if ini1 is not None:
+                    fin_m1_actual = ultima_hora(muelle_m1)
+                    fin_cont_actual = ultima_hora(muelle_cont)
+                    fin_m1_nuevo = fin1 if (not fin_m1_actual or fin1.time() > fin_m1_actual) else fin_m1_actual
+                    max_fin = max([x for x in [fin_m1_nuevo, fin_cont_actual] if x] + [time(0, 0)])
+                    mejores.append(("Muelle 1", ini1, fin1, max_fin))
+
+                # intento Cont
+                inic, finc = primer_slot_disponible_excluyendo(muelle_cont, base_cont_dt, dur, excluir_id=-999999)
+                if inic is not None:
+                    fin_m1_actual = ultima_hora(muelle_m1)
+                    fin_cont_actual = ultima_hora(muelle_cont)
+                    fin_cont_nuevo = finc if (not fin_cont_actual or finc.time() > fin_cont_actual) else fin_cont_actual
+                    max_fin = max([x for x in [fin_m1_actual, fin_cont_nuevo] if x] + [time(0, 0)])
+                    mejores.append(("Contingencia", inic, finc, max_fin))
+
+                if not mejores:
+                    continue
+
+                # elegir opción que minimiza el max(fin_m1, fin_cont)
+                mejores.sort(key=lambda x: (x[3].hour, x[3].minute))
+                mu_sel, ini_sel, fin_sel, _ = mejores[0]
 
                 st.session_state.confirmadas.append({
                     "id": len(st.session_state.confirmadas) + 1,
                     "title": nec["material"],
-                    "start": ini_new.strftime("%Y-%m-%dT%H:%M:%S"),
-                    "end": fin_new.strftime("%Y-%m-%dT%H:%M:%S"),
+                    "start": ini_sel.strftime("%Y-%m-%dT%H:%M:%S"),
+                    "end": fin_sel.strftime("%Y-%m-%dT%H:%M:%S"),
                     "fecha": fecha_str,
-                    "inicio": ini_new.time(),
-                    "fin": fin_new.time(),
-                    "muelle": muelle_cont
+                    "inicio": ini_sel.time(),
+                    "fin": fin_sel.time(),
+                    "muelle": mu_sel
                 })
+                rescatadas.append(nec)
 
-                nuevos_programados.append(nec)
+            if rescatadas:
+                st.session_state.no_programadas = [n for n in st.session_state.no_programadas if n not in rescatadas]
 
-            if nuevos_programados:
-                st.session_state.no_programadas = [n for n in st.session_state.no_programadas if n not in nuevos_programados]
-
-            # ✅ 2) BALANCEO MOVIENDO CITAS DE M1 -> CONT (SIEMPRE RESPETA BASE_CONT)
+            # ✅ 1) BALANCEO BIDIRECCIONAL POR MAKESPAN
+            # Mover la última cita del muelle que termina más tarde hacia el otro muelle,
+            # aceptando SOLO si reduce el max(fin_m1, fin_cont). Repetir hasta no mejorar.
             mejora = True
             while mejora:
 
-                carga_m1 = carga_total(muelle_m1)
-                carga_cont = carga_total(muelle_cont)
+                fin_m1 = ultima_hora(muelle_m1)
+                fin_cont = ultima_hora(muelle_cont)
 
-                if carga_m1 <= carga_cont + 30:
+                # si uno está vacío, igual sigue intentando (para adelantar el máximo)
+                fin_max_actual = max([x for x in [fin_m1, fin_cont] if x] + [time(0, 0)])
+
+                # decidir cuál muelle está "más tarde"
+                # si cont no tiene nada, intenta mover desde m1 -> cont (si ayuda)
+                # si m1 no tiene nada, intenta mover desde cont -> m1 (si ayuda)
+                if fin_cont and (not fin_m1 or fin_cont > fin_m1):
+                    origen = muelle_cont
+                    destino = muelle_m1
+                    inicio_base_dest = datetime.combine(fecha_dt, time(6, 0))  # M1 desde 06:00
+                else:
+                    origen = muelle_m1
+                    destino = muelle_cont
+                    inicio_base_dest = base_cont_dt  # CONT desde fin_m2 o 06:00
+
+                citas_origen = sorted(citas_muelle(origen), key=lambda x: x["fin"], reverse=True)
+                if not citas_origen:
                     break
 
-                origen = sorted(citas_muelle(muelle_m1), key=lambda x: x["fin"], reverse=True)
-                if not origen:
-                    break
-
-                c = origen[0]
+                c = citas_origen[0]
 
                 duracion = int(
                     (
@@ -573,13 +639,34 @@ if pagina == "📅 Fase 3 - Simulación":
                     ).total_seconds() / 60
                 )
 
-                ini_new, fin_new = primer_slot_disponible(muelle_cont, base_cont, duracion)
+                ini_new, fin_new = primer_slot_disponible_excluyendo(destino, inicio_base_dest, duracion, excluir_id=c["id"])
                 if ini_new is None:
+                    mejora = False
                     break
 
-                if abs((carga_m1 - duracion) - (carga_cont + duracion)) < abs(carga_m1 - carga_cont):
+                # calcular nuevo fin máximo si movemos c al destino
+                fin_origen_nuevo = fin_muelle_simulado(origen, mover_id=c["id"], nuevo_ini=None, nuevo_fin=None)
+                # quitar esa cita del origen => recomputar fin sin ella
+                fins_restantes = [x["fin"] for x in citas_muelle(origen) if int(x["id"]) != int(c["id"])]
+                fin_origen_nuevo = max(fins_restantes) if fins_restantes else None
 
-                    c["muelle"] = muelle_cont
+                fin_destino_actual = ultima_hora(destino)
+                fin_destino_nuevo = fin_new.time() if (not fin_destino_actual or fin_new.time() > fin_destino_actual) else fin_destino_actual
+
+                # max entre M1 y CONT después del movimiento
+                if origen == muelle_m1:
+                    fin_m1_new = fin_origen_nuevo
+                    fin_cont_new = fin_destino_nuevo
+                else:
+                    fin_cont_new = fin_origen_nuevo
+                    fin_m1_new = fin_destino_nuevo
+
+                fin_max_nuevo = max([x for x in [fin_m1_new, fin_cont_new] if x] + [time(0, 0)])
+
+                # aceptar solo si reduce la hora máxima de terminación
+                if fin_max_nuevo < fin_max_actual:
+
+                    c["muelle"] = destino
                     c["inicio"] = ini_new.time()
                     c["fin"] = fin_new.time()
                     c["start"] = ini_new.strftime("%Y-%m-%dT%H:%M:%S")
