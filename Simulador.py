@@ -479,7 +479,7 @@ if pagina == "📅 Fase 3 - Simulación":
 
         for fecha_str in fechas_unicas:
 
-            fecha_dt = datetime.strptime(fecha_str, "%Y-%m-%d")
+            fecha_dt = datetime.strptime(fecha_str, "%Y-%m-%d").date()
 
             def citas_muelle(muelle):
                 return sorted(
@@ -505,67 +505,45 @@ if pagina == "📅 Fase 3 - Simulación":
                     )
                 return total
 
-            # 🔵 NUEVO → BUSCAR ESPACIO DISPONIBLE RESPETANDO BLOQUEOS
-            def siguiente_espacio_disponible(muelle, inicio_base, duracion):
+            # ✅ BUSCA EL PRIMER SLOT REAL EN CONTINGENCIA RESPETANDO:
+            # - Bloqueos
+            # - Citas ya programadas
+            # - Franjas (06:00–22:00 por defecto)
+            # - REGLA OPERATIVA: si Muelle 2 tiene citas, Contingencia solo abre desde fin_m2
+            def primer_slot_disponible(muelle, inicio_base_dt, duracion_min):
 
-                eventos = citas_muelle(muelle)
+                franja = obtener_franja(fecha_str, muelle)
 
-                # agregar bloqueos si existen
-                bloqueos = [
-                    b for b in st.session_state.bloqueos
-                    if b["muelle"] == muelle and b["fecha"] == fecha_str
-                ] if "bloqueos" in st.session_state else []
+                inicio_dt = max(datetime.combine(fecha_dt, franja["inicio"]), inicio_base_dt)
+                fin_franja = datetime.combine(fecha_dt, franja["fin"])
 
-                eventos_total = eventos + bloqueos
-                eventos_total = sorted(eventos_total, key=lambda x: x["inicio"])
+                while inicio_dt + timedelta(minutes=duracion_min) <= fin_franja:
 
-                inicio_propuesto = inicio_base
+                    fin_dt = inicio_dt + timedelta(minutes=duracion_min)
 
-                for ev in eventos_total:
-                    ev_inicio = datetime.combine(fecha_dt, ev["inicio"])
-                    ev_fin = datetime.combine(fecha_dt, ev["fin"])
+                    if not conflicto(fecha_str, inicio_dt.time(), fin_dt.time(), muelle):
+                        return inicio_dt, fin_dt
 
-                    fin_propuesto = inicio_propuesto + timedelta(minutes=duracion)
+                    inicio_dt += timedelta(minutes=5)
 
-                    # Si se cruza, mover al final del evento
-                    if inicio_propuesto < ev_fin and fin_propuesto > ev_inicio:
-                        inicio_propuesto = ev_fin
-
-                return inicio_propuesto
+                return None, None
 
             mejora = True
 
             while mejora:
 
-                fin_m1 = ultima_hora(muelle_origen)
-                fin_m2 = ultima_hora(muelle_ref)
-                fin_cont = ultima_hora(muelle_destino)
-
                 carga_m1 = carga_total(muelle_origen)
                 carga_cont = carga_total(muelle_destino)
 
-                citas_ref = citas_muelle(muelle_ref)
+                # tolerancia para no micro-mover
+                if carga_m1 <= carga_cont + 30:
+                    break
 
-                # -------------------------
-                # ESCENARIO 2 → M2 VACÍO
-                # -------------------------
-                if not citas_ref:
-                    if not fin_m1:
-                        break
-                    base = datetime.combine(fecha_dt, time(6, 0))
-                else:
-                    if not fin_m1 or not fin_m2:
-                        break
-                    base = datetime.combine(
-                        fecha_dt,
-                        max([f for f in [fin_m2, fin_cont] if f])
-                    )
-
-                diff_hora_actual = abs(
-                    datetime.combine(fecha_dt, fin_m1) - base
-                )
-
-                diff_carga_actual = abs(carga_m1 - carga_cont)
+                # base contingencia según escenario:
+                # - si M2 tiene citas -> desde fin_m2
+                # - si M2 está vacío -> desde 06:00
+                fin_m2 = ultima_hora(muelle_ref)
+                base_cont = datetime.combine(fecha_dt, fin_m2) if fin_m2 else datetime.combine(fecha_dt, time(6, 0))
 
                 citas_origen = sorted(
                     citas_muelle(muelle_origen),
@@ -585,40 +563,21 @@ if pagina == "📅 Fase 3 - Simulación":
                     ).total_seconds() / 60
                 )
 
-                # 🔵 AQUÍ YA RESPETA BLOQUEOS
-                inicio_dest = siguiente_espacio_disponible(
-                    muelle_destino,
-                    base,
-                    duracion
-                )
+                ini_new, fin_new = primer_slot_disponible(muelle_destino, base_cont, duracion)
 
-                fin_dest_nuevo = inicio_dest + timedelta(minutes=duracion)
-
-                nuevo_fin_origen = (
-                    sorted([x["fin"] for x in citas_origen[1:]])[-1]
-                    if len(citas_origen) > 1 else None
-                )
-
-                if not nuevo_fin_origen:
+                if ini_new is None:
                     break
 
                 nueva_carga_m1 = carga_m1 - duracion
                 nueva_carga_cont = carga_cont + duracion
 
-                diff_hora_nuevo = abs(
-                    datetime.combine(fecha_dt, nuevo_fin_origen) -
-                    fin_dest_nuevo
-                )
-
-                diff_carga_nuevo = abs(nueva_carga_m1 - nueva_carga_cont)
-
-                if diff_hora_nuevo < diff_hora_actual and diff_carga_nuevo < diff_carga_actual:
+                if abs(nueva_carga_m1 - nueva_carga_cont) < abs(carga_m1 - carga_cont):
 
                     c["muelle"] = muelle_destino
-                    c["inicio"] = inicio_dest.time()
-                    c["fin"] = fin_dest_nuevo.time()
-                    c["start"] = inicio_dest.strftime("%Y-%m-%dT%H:%M:%S")
-                    c["end"] = fin_dest_nuevo.strftime("%Y-%m-%dT%H:%M:%S")
+                    c["inicio"] = ini_new.time()
+                    c["fin"] = fin_new.time()
+                    c["start"] = ini_new.strftime("%Y-%m-%dT%H:%M:%S")
+                    c["end"] = fin_new.strftime("%Y-%m-%dT%H:%M:%S")
 
                 else:
                     mejora = False
