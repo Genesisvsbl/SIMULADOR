@@ -1067,15 +1067,12 @@ if fecha_sel in st.session_state.finalizaciones:
 st.markdown("### 📊 Histórico Finalización Operativa")
 
 if st.session_state.finalizaciones:
-    # Crear dataframe para mostrar
     df_finalizaciones = pd.DataFrame(st.session_state.finalizaciones).T
     df_finalizaciones.index.name = "Fecha"
 
-    # Reordenar columnas si existen
     columnas = ["Final Teórico", "Final Real", "Desviación (min)"]
     df_finalizaciones = df_finalizaciones[[c for c in columnas if c in df_finalizaciones.columns]]
 
-    # Mostrar tabla
     st.dataframe(df_finalizaciones, use_container_width=True)
 else:
     st.info("No hay registros de finalizaciones operativas aún")
@@ -1092,62 +1089,61 @@ final_real = st.time_input("Hora final real")
 if st.button("Registrar Finalización"):
     delta = (datetime.combine(fecha_final, final_real) - datetime.combine(fecha_final, final_teorico)).total_seconds() / 60
     st.session_state.finalizaciones[fecha_str] = {
-        "Final Teórico": final_teorico,
-        "Final Real": final_real,
-        "Desviación (min)": round(delta)
+        "Final Teórico": final_teorico.strftime("%H:%M"),
+        "Final Real": final_real.strftime("%H:%M"),
+        "Desviación (min)": round(delta, 1)
     }
     guardar_datos()
     st.success(f"Finalización operativa registrada para {fecha_str}")
     st.experimental_rerun()
 
-        # ================= TABLA HISTÓRICA SIN TIEMPO DISPONIBLE =================
-        st.markdown("### 📊 Histórico Finalización Operativa")
+# ================= TABLA HISTÓRICA SIN TIEMPO DISPONIBLE =================
+st.markdown("### 📊 Histórico Finalización Operativa (Detallado)")
 
-        historico_data = []
+historico_data = []
 
-        for fecha in fechas:
-            fecha_dt_temp = datetime.strptime(fecha, "%Y-%m-%d")
-            citas_temp = [c for c in st.session_state.confirmadas if c["fecha"] == fecha]
+for fecha in fechas:
+    fecha_dt_temp = datetime.strptime(fecha, "%Y-%m-%d")
+    citas_temp = [c for c in st.session_state.confirmadas if c["fecha"] == fecha]
 
-            if citas_temp:
-                hora_teo = max(c["fin"] for c in citas_temp)
-                hora_teo_str = hora_teo.strftime("%H:%M")
-            else:
-                hora_teo_str = "Sin operación"
+    if citas_temp:
+        hora_teo = max(c["fin"] for c in citas_temp)
+        hora_teo_str = hora_teo.strftime("%H:%M")
+    else:
+        hora_teo_str = "Sin operación"
 
-            if fecha in st.session_state.finalizaciones:
-                real_str = st.session_state.finalizaciones[fecha]["Final Real"]
-                desviacion = st.session_state.finalizaciones[fecha]["Desviación (min)"]
-            else:
-                real_str = ""
-                desviacion = ""
+    if fecha in st.session_state.finalizaciones:
+        real_str = st.session_state.finalizaciones[fecha]["Final Real"]
+        desviacion = st.session_state.finalizaciones[fecha]["Desviación (min)"]
+    else:
+        real_str = ""
+        desviacion = ""
 
-            historico_data.append({
-                "Fecha": fecha,
-                "Final Teórico": hora_teo_str,
-                "Final Real": real_str,
-                "Desviación (min)": desviacion
-            })
+    historico_data.append({
+        "Fecha": fecha,
+        "Final Teórico": hora_teo_str,
+        "Final Real": real_str,
+        "Desviación (min)": desviacion
+    })
 
-        df_final = pd.DataFrame(historico_data)
-        df_final = df_final.sort_values("Fecha")
+df_final = pd.DataFrame(historico_data).sort_values("Fecha")
 
-        def color_hist(v):
-            if isinstance(v, (int, float)):
-                if v <= 0:
-                    return "background-color:#c6efce"
-                elif v <= 60:
-                    return "background-color:#fff2cc"
-                else:
-                    return "background-color:#ffc7ce"
-            return ""
+def color_hist(v):
+    if isinstance(v, (int, float)):
+        if v <= 0:
+            return "background-color:#c6efce"
+        elif v <= 60:
+            return "background-color:#fff2cc"
+        else:
+            return "background-color:#ffc7ce"
+    return ""
 
-        styled_hist = df_final.style.applymap(color_hist, subset=["Desviación (min)"])
-        st.dataframe(styled_hist, use_container_width=True)
+styled_hist = df_final.style.applymap(color_hist, subset=["Desviación (min)"])
+st.dataframe(styled_hist, use_container_width=True)
 
-        # ================= EXPORTAR =================
-        df_export = df.copy()
-        df_export.to_excel("reporte_operacion.xlsx")
+# ================= EXPORTAR =================
+df_export = df_final.copy()
+df_export.to_excel("reporte_operacion.xlsx", index=False)
 
-        with open("reporte_operacion.xlsx", "rb") as f:
-            st.download_button("📥 Descargar Excel", data=f, file_name="reporte_operacion.xlsx")
+with open("reporte_operacion.xlsx", "rb") as f:
+    st.download_button("📥 Descargar Excel", data=f, file_name="reporte_operacion.xlsx")
