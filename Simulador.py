@@ -28,9 +28,25 @@ CATALOGO = {
     "TIERRA": {"vh": "TRACTOCAMION-B", "min": 120},
 }
 
-# ================= PERSISTENCIA =================
 DATA_FILE = "simulador_data.json"
 
+# 🔹 Inicialización de session_state
+for k in [
+    "necesidades",
+    "confirmadas",
+    "no_programadas",
+    "bloqueos",
+    "franjas",
+    "ejecutados",
+    "finalizaciones"   # 🔹 agregamos finalizaciones
+]:
+    if k not in st.session_state:
+        if k == "finalizaciones":
+            st.session_state[k] = {}   # dict
+        else:
+            st.session_state[k] = []
+
+# ================= SERIALIZAR =================
 def serializar():
     return {
         "necesidades": st.session_state.get("necesidades", []),
@@ -50,14 +66,15 @@ def serializar():
         "ejecutados": st.session_state.get("ejecutados", []),
         "finalizaciones": {
             fecha: {
-                "Final Teórico": str(v["Final Teórico"]),
+                "Final Teórico": str(v["Final Teórico"]) if v["Final Teórico"] else "Sin operación",
                 "Final Real": str(v["Final Real"]) if v["Final Real"] else None,
-                "Desviación (min)": v["Desviación (min)"]
+                "Desviación (min)": v.get("Desviación (min)", 0)
             }
             for fecha, v in st.session_state.get("finalizaciones", {}).items()
         }
     }
 
+# ================= DESERIALIZAR =================
 def deserializar(data):
     st.session_state.confirmadas = [
         {**c,
@@ -77,16 +94,21 @@ def deserializar(data):
          "fin": datetime.strptime(f["fin"], "%H:%M:%S").time()}
         for f in data.get("franjas", [])
     ]
-    # 🔹 AGREGADO: cargar finalizaciones
+    st.session_state.necesidades = data.get("necesidades", [])
+    st.session_state.no_programadas = data.get("no_programadas", [])
+    st.session_state.ejecutados = data.get("ejecutados", [])
+    
+    # 🔹 Cargar finalizaciones
     finalizaciones = data.get("finalizaciones", {})
     st.session_state.finalizaciones = {}
     for fecha, v in finalizaciones.items():
         st.session_state.finalizaciones[fecha] = {
             "Final Teórico": datetime.strptime(v["Final Teórico"], "%H:%M:%S").time() if v["Final Teórico"] != "Sin operación" else None,
             "Final Real": datetime.strptime(v["Final Real"], "%H:%M:%S").time() if v["Final Real"] else None,
-            "Desviación (min)": v["Desviación (min)"]
+            "Desviación (min)": v.get("Desviación (min)", 0)
         }
 
+# ================= GUARDAR Y CARGAR =================
 def guardar_datos():
     with open(DATA_FILE, "w") as f:
         json.dump(serializar(), f)
@@ -98,6 +120,7 @@ def cargar_datos():
             data = json.load(f)
             deserializar(data)
 
+# ================= RESET TOTAL =================
 def reset_total():
     for k in [
         "necesidades",
@@ -105,12 +128,17 @@ def reset_total():
         "no_programadas",
         "bloqueos",
         "franjas",
-        "ejecutados"
+        "ejecutados",
+        "finalizaciones"   # 🔹 también reiniciamos finalizaciones
     ]:
-        st.session_state[k] = []
+        if k == "finalizaciones":
+            st.session_state[k] = {}
+        else:
+            st.session_state[k] = []
     if os.path.exists(DATA_FILE):
         os.remove(DATA_FILE)
     st.success("Sistema reiniciado completamente")
+
 # ================= SESSION =================
 for k in [
     "necesidades",
