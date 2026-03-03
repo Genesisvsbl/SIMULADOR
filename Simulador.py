@@ -1063,15 +1063,22 @@ if fecha_sel in st.session_state.finalizaciones:
         </div>
     """, unsafe_allow_html=True)
 
-# ================= HISTÓRICO FINALIZACIÓN =================
-st.divider()
+# ================= HISTÓRICO FINALIZACIÓN OPERATIVA =================
 st.markdown("### 📊 Histórico Finalización Operativa")
 
 if st.session_state.finalizaciones:
-    df_final = pd.DataFrame.from_dict(st.session_state.finalizaciones, orient="index")
-    st.dataframe(df_final, use_container_width=True)
+    # Crear dataframe para mostrar
+    df_finalizaciones = pd.DataFrame(st.session_state.finalizaciones).T
+    df_finalizaciones.index.name = "Fecha"
+
+    # Reordenar columnas si existen
+    columnas = ["Final Teórico", "Final Real", "Desviación (min)"]
+    df_finalizaciones = df_finalizaciones[[c for c in columnas if c in df_finalizaciones.columns]]
+
+    # Mostrar tabla
+    st.dataframe(df_finalizaciones, use_container_width=True)
 else:
-    st.info("Aún no hay registros de finalización operativa")
+    st.info("No hay registros de finalizaciones operativas aún")
 
         # ================= TABLA HISTÓRICA SIN TIEMPO DISPONIBLE =================
         st.markdown("### 📊 Histórico Finalización Operativa")
