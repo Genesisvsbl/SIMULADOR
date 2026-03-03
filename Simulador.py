@@ -332,7 +332,7 @@ if "filtro_muelle" not in st.session_state:
 
 filtro_muelle = st.session_state.filtro_muelle
 
-# ================= FASE 3 =================
+# ================= FASE 3 ================= 
 if pagina == "📅 Fase 3 - Simulación":
 
     st.title("📅 Simulación")
@@ -535,20 +535,6 @@ if pagina == "📅 Fase 3 - Simulación":
 
                 return None, None
 
-            # ✅ utilidad: recalcular fin de muelle después de mover 1 cita (simulación rápida)
-            def fin_muelle_simulado(muelle, mover_id=None, nuevo_ini=None, nuevo_fin=None):
-                fins = []
-                for c in st.session_state.confirmadas:
-                    if c["fecha"] != fecha_str:
-                        continue
-                    if c["muelle"] != muelle:
-                        continue
-                    if mover_id is not None and int(c["id"]) == int(mover_id):
-                        fins.append(nuevo_fin)
-                    else:
-                        fins.append(c["fin"])
-                return max(fins) if fins else None
-
             # ✅ 0) Si hay NO_PROGRAMADAS de M1, intentar programarlas en CONT o M1 con criterio de "terminar más temprano"
             #     (CONT solo desde base_cont_dt)
             pendientes = [n for n in st.session_state.no_programadas if n["fecha"] == fecha_str and n["muelle"] == muelle_m1]
@@ -567,7 +553,7 @@ if pagina == "📅 Fase 3 - Simulación":
                 if ini1 is not None:
                     fin_m1_actual = ultima_hora(muelle_m1)
                     fin_cont_actual = ultima_hora(muelle_cont)
-                    fin_m1_nuevo = fin1 if (not fin_m1_actual or fin1.time() > fin_m1_actual) else fin_m1_actual
+                    fin_m1_nuevo = fin1.time() if (not fin_m1_actual or fin1.time() > fin_m1_actual) else fin_m1_actual
                     max_fin = max([x for x in [fin_m1_nuevo, fin_cont_actual] if x] + [time(0, 0)])
                     mejores.append(("Muelle 1", ini1, fin1, max_fin))
 
@@ -576,7 +562,7 @@ if pagina == "📅 Fase 3 - Simulación":
                 if inic is not None:
                     fin_m1_actual = ultima_hora(muelle_m1)
                     fin_cont_actual = ultima_hora(muelle_cont)
-                    fin_cont_nuevo = finc if (not fin_cont_actual or finc.time() > fin_cont_actual) else fin_cont_actual
+                    fin_cont_nuevo = finc.time() if (not fin_cont_actual or finc.time() > fin_cont_actual) else fin_cont_actual
                     max_fin = max([x for x in [fin_m1_actual, fin_cont_nuevo] if x] + [time(0, 0)])
                     mejores.append(("Contingencia", inic, finc, max_fin))
 
@@ -644,10 +630,11 @@ if pagina == "📅 Fase 3 - Simulación":
                     mejora = False
                     break
 
-                # calcular nuevo fin máximo si movemos c al destino
-                fin_origen_nuevo = fin_muelle_simulado(origen, mover_id=c["id"], nuevo_ini=None, nuevo_fin=None)
-                # quitar esa cita del origen => recomputar fin sin ella
-                fins_restantes = [x["fin"] for x in citas_muelle(origen) if int(x["id"]) != int(c["id"])]
+                # ✅ calcular fin del ORIGEN después de sacar esa cita (SIN None)
+                fins_restantes = [
+                    x["fin"] for x in citas_muelle(origen)
+                    if int(x["id"]) != int(c["id"])
+                ]
                 fin_origen_nuevo = max(fins_restantes) if fins_restantes else None
 
                 fin_destino_actual = ultima_hora(destino)
