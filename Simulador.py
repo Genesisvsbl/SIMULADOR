@@ -396,6 +396,20 @@ if pagina == "📅 Fase 3 - Simulación":
     # ================= SIMULACIÓN =================
     if st.button("Ejecutar Simulación"):
 
+        # ✅ JORNADA OPERATIVA FIJA PARA TODOS LOS MUELLES
+        JORNADA_INICIO = time(6, 0)
+        JORNADA_FIN = time(22, 0)
+
+        def obtener_franja(fecha_str, muelle):
+            f = next(
+                (x for x in st.session_state.franjas
+                 if x["fecha"] == fecha_str and x["muelle"] == muelle),
+                None
+            )
+            if f:
+                return f
+            return {"inicio": JORNADA_INICIO, "fin": JORNADA_FIN}
+
         st.session_state.no_programadas = []
         estrategia = "Normal"
 
@@ -410,48 +424,48 @@ if pagina == "📅 Fase 3 - Simulación":
             fecha_str = nec["fecha"]
             fecha_dt = datetime.strptime(fecha_str, "%Y-%m-%d").date()
             dur = nec["duracion"]
-            asignado = False
-            muelle = nec["muelle"]
 
-            # ===== CONTINGENCIA SIN RESTRICCIÓN =====
-            if muelle == "Contingencia":
-                franja = {"inicio": time(6, 0), "fin": time(23, 59)}
+            # ✅ Orden de intentos (balance previo): muelle asignado -> Contingencia
+            if nec["muelle"] == "Muelle 1":
+                muelles_intento = ["Muelle 1", "Contingencia"]
+            elif nec["muelle"] == "Muelle 2":
+                muelles_intento = ["Muelle 2", "Contingencia"]
             else:
-                franja = next(
-                    (
-                        f for f in st.session_state.franjas
-                        if f["fecha"] == fecha_str and f["muelle"] == muelle
-                    ),
-                    None
-                )
+                muelles_intento = ["Contingencia"]
 
-                if not franja:
-                    franja = {"inicio": time(6, 0), "fin": time(23, 59)}
+            asignado = False
 
-            inicio_dt = datetime.combine(fecha_dt, franja["inicio"])
-            fin_franja = datetime.combine(fecha_dt, franja["fin"])
+            for muelle in muelles_intento:
 
-            while inicio_dt + timedelta(minutes=dur) <= fin_franja:
+                franja = obtener_franja(fecha_str, muelle)
 
-                fin_dt = inicio_dt + timedelta(minutes=dur)
+                inicio_dt = datetime.combine(fecha_dt, franja["inicio"])
+                fin_franja = datetime.combine(fecha_dt, franja["fin"])
 
-                if not conflicto(fecha_str, inicio_dt.time(), fin_dt.time(), muelle):
+                while inicio_dt + timedelta(minutes=dur) <= fin_franja:
 
-                    st.session_state.confirmadas.append({
-                        "id": len(st.session_state.confirmadas) + 1,
-                        "title": nec["material"],
-                        "start": inicio_dt.strftime("%Y-%m-%dT%H:%M:%S"),
-                        "end": fin_dt.strftime("%Y-%m-%dT%H:%M:%S"),
-                        "fecha": fecha_str,
-                        "inicio": inicio_dt.time(),
-                        "fin": fin_dt.time(),
-                        "muelle": muelle
-                    })
+                    fin_dt = inicio_dt + timedelta(minutes=dur)
 
-                    asignado = True
+                    if not conflicto(fecha_str, inicio_dt.time(), fin_dt.time(), muelle):
+
+                        st.session_state.confirmadas.append({
+                            "id": len(st.session_state.confirmadas) + 1,
+                            "title": nec["material"],
+                            "start": inicio_dt.strftime("%Y-%m-%dT%H:%M:%S"),
+                            "end": fin_dt.strftime("%Y-%m-%dT%H:%M:%S"),
+                            "fecha": fecha_str,
+                            "inicio": inicio_dt.time(),
+                            "fin": fin_dt.time(),
+                            "muelle": muelle
+                        })
+
+                        asignado = True
+                        break
+
+                    inicio_dt += timedelta(minutes=5)
+
+                if asignado:
                     break
-
-                inicio_dt += timedelta(minutes=5)
 
             if not asignado:
                 st.session_state.no_programadas.append(nec)
@@ -631,7 +645,7 @@ if pagina == "📅 Fase 3 - Simulación":
                 muelle = mReprog
 
                 inicio_dt = datetime.combine(fecha_reprog, time(6, 0))
-                fin_franja = datetime.combine(fecha_reprog, time(23, 59))
+                fin_franja = datetime.combine(fecha_reprog, time(22, 0))
                 fecha_str = fecha_reprog.strftime("%Y-%m-%d")
 
                 while inicio_dt + timedelta(minutes=dur) <= fin_franja:
@@ -717,7 +731,7 @@ if pagina == "📅 Fase 3 - Simulación":
             "initialDate": st.session_state.fecha_vista.strftime("%Y-%m-%d"),
             "timeZone": "local",
             "slotMinTime": "06:00:00",
-            "slotMaxTime": "23:59:00",
+            "slotMaxTime": "22:00:00",
             "editable": True,
             "allDaySlot": False,
             "nowIndicator": True
