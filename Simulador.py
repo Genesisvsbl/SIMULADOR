@@ -1080,6 +1080,26 @@ if st.session_state.finalizaciones:
 else:
     st.info("No hay registros de finalizaciones operativas aún")
 
+# ================= REGISTRO DE FINALIZACIÓN =================
+st.markdown("### 📝 Registrar Finalización Operativa")
+
+fecha_final = st.date_input("Fecha de registro", value=datetime.today().date())
+fecha_str = fecha_final.strftime("%Y-%m-%d")
+
+final_teorico = st.time_input("Hora final teórica")
+final_real = st.time_input("Hora final real")
+
+if st.button("Registrar Finalización"):
+    delta = (datetime.combine(fecha_final, final_real) - datetime.combine(fecha_final, final_teorico)).total_seconds() / 60
+    st.session_state.finalizaciones[fecha_str] = {
+        "Final Teórico": final_teorico,
+        "Final Real": final_real,
+        "Desviación (min)": round(delta)
+    }
+    guardar_datos()
+    st.success(f"Finalización operativa registrada para {fecha_str}")
+    st.experimental_rerun()
+
         # ================= TABLA HISTÓRICA SIN TIEMPO DISPONIBLE =================
         st.markdown("### 📊 Histórico Finalización Operativa")
 
