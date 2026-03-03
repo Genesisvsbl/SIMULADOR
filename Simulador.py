@@ -456,7 +456,7 @@ if pagina == "📅 Fase 3 - Simulación":
             if not asignado:
                 st.session_state.no_programadas.append(nec)
 
-        # -------- BALANCEO INTELIGENTE MIXTO --------
+        # -------- BALANCEO INTELIGENTE MIXTO CON BLOQUEOS --------
         muelle_origen = "Muelle 1"
         muelle_ref = "Muelle 2"
         muelle_destino = "Contingencia"
@@ -468,10 +468,13 @@ if pagina == "📅 Fase 3 - Simulación":
             fecha_dt = datetime.strptime(fecha_str, "%Y-%m-%d")
 
             def citas_muelle(muelle):
-                return [
-                    c for c in st.session_state.confirmadas
-                    if c["muelle"] == muelle and c["fecha"] == fecha_str
-                ]
+                return sorted(
+                    [
+                        c for c in st.session_state.confirmadas
+                        if c["muelle"] == muelle and c["fecha"] == fecha_str
+                    ],
+                    key=lambda x: x["inicio"]
+                )
 
             def ultima_hora(muelle):
                 horas = [c["fin"] for c in citas_muelle(muelle)]
@@ -482,11 +485,39 @@ if pagina == "📅 Fase 3 - Simulación":
                 for c in citas_muelle(muelle):
                     total += int(
                         (
-                            datetime.combine(datetime.today(), c["fin"]) -
-                            datetime.combine(datetime.today(), c["inicio"])
+                            datetime.combine(fecha_dt, c["fin"]) -
+                            datetime.combine(fecha_dt, c["inicio"])
                         ).total_seconds() / 60
                     )
                 return total
+
+            # 🔵 NUEVO → BUSCAR ESPACIO DISPONIBLE RESPETANDO BLOQUEOS
+            def siguiente_espacio_disponible(muelle, inicio_base, duracion):
+
+                eventos = citas_muelle(muelle)
+
+                # agregar bloqueos si existen
+                bloqueos = [
+                    b for b in st.session_state.bloqueos
+                    if b["muelle"] == muelle and b["fecha"] == fecha_str
+                ] if "bloqueos" in st.session_state else []
+
+                eventos_total = eventos + bloqueos
+                eventos_total = sorted(eventos_total, key=lambda x: x["inicio"])
+
+                inicio_propuesto = inicio_base
+
+                for ev in eventos_total:
+                    ev_inicio = datetime.combine(fecha_dt, ev["inicio"])
+                    ev_fin = datetime.combine(fecha_dt, ev["fin"])
+
+                    fin_propuesto = inicio_propuesto + timedelta(minutes=duracion)
+
+                    # Si se cruza, mover al final del evento
+                    if inicio_propuesto < ev_fin and fin_propuesto > ev_inicio:
+                        inicio_propuesto = ev_fin
+
+                return inicio_propuesto
 
             mejora = True
 
@@ -507,16 +538,17 @@ if pagina == "📅 Fase 3 - Simulación":
                 if not citas_ref:
                     if not fin_m1:
                         break
-                    base = time(6, 0)
-                    fin_linea = max([f for f in [fin_cont, base] if f])
+                    base = datetime.combine(fecha_dt, time(6, 0))
                 else:
                     if not fin_m1 or not fin_m2:
                         break
-                    fin_linea = max([f for f in [fin_m2, fin_cont] if f])
+                    base = datetime.combine(
+                        fecha_dt,
+                        max([f for f in [fin_m2, fin_cont] if f])
+                    )
 
                 diff_hora_actual = abs(
-                    datetime.combine(fecha_dt, fin_m1) -
-                    datetime.combine(fecha_dt, fin_linea)
+                    datetime.combine(fecha_dt, fin_m1) - base
                 )
 
                 diff_carga_actual = abs(carga_m1 - carga_cont)
@@ -534,12 +566,18 @@ if pagina == "📅 Fase 3 - Simulación":
 
                 duracion = int(
                     (
-                        datetime.combine(datetime.today(), c["fin"]) -
-                        datetime.combine(datetime.today(), c["inicio"])
+                        datetime.combine(fecha_dt, c["fin"]) -
+                        datetime.combine(fecha_dt, c["inicio"])
                     ).total_seconds() / 60
                 )
 
-                inicio_dest = datetime.combine(fecha_dt, fin_linea)
+                # 🔵 AQUÍ YA RESPETA BLOQUEOS
+                inicio_dest = siguiente_espacio_disponible(
+                    muelle_destino,
+                    base,
+                    duracion
+                )
+
                 fin_dest_nuevo = inicio_dest + timedelta(minutes=duracion)
 
                 nuevo_fin_origen = (
@@ -573,7 +611,7 @@ if pagina == "📅 Fase 3 - Simulación":
 
         st.session_state.necesidades = []
         guardar_datos()
-        st.rerun()    
+        st.rerun()
 # ================= REPROGRAMACIÓN =================
     if st.session_state.no_programadas:
 
