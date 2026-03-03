@@ -907,6 +907,7 @@ if pagina == "📊 Fase 4 - Indicadores":
         st.subheader("⚙️ KPI OEE Logístico")
 
         oee_data = {}
+        resumen_fin_operacion = {}
 
         for fecha_str in fechas:
 
@@ -917,31 +918,46 @@ if pagina == "📊 Fase 4 - Indicadores":
                 datetime.combine(fecha_dt,JORNADA_INICIO)
             ).total_seconds()/60
 
-            for muelle in ["Muelle 1","Muelle 2","Contingencia"]:
+            # ================= DEFINICIÓN DE LÍNEAS =================
+            lineas = {
+                "Muelle 1": ["Muelle 1"],
+                "Muelle 2 + Contingencia": ["Muelle 2","Contingencia"]
+            }
+
+            for nombre_linea, muelles_asociados in lineas.items():
 
                 # ================= CITAS =================
                 citas = [
                     c for c in st.session_state.confirmadas
                     if c["fecha"] == fecha_str and
-                    c["muelle"] == muelle
+                    c["muelle"] in muelles_asociados
                 ]
 
                 if citas:
                     ini = min(c["inicio"] for c in citas)
                     fin = max(c["fin"] for c in citas)
+
                     op = (
                         datetime.combine(fecha_dt,fin) -
                         datetime.combine(fecha_dt,ini)
                     ).total_seconds()/60
+
+                    hora_fin_operacion = fin.strftime("%H:%M")
+
                 else:
                     op = 0
+                    hora_fin_operacion = "Sin operación"
+
+                # Guardamos hora fin por día
+                resumen_fin_operacion.setdefault(fecha_str,{})
+                resumen_fin_operacion[fecha_str][nombre_linea] = hora_fin_operacion
 
                 # ================= BLOQUEOS =================
                 if "bloqueos" in st.session_state:
                     bloqueos = [
                         b for b in st.session_state.bloqueos
                         if b["fecha"] == fecha_str and
-                        b["muelle"] == muelle
+                        b["muelle"] in muelles_asociados
                     ]
                 else:
                     bloqueos = []
@@ -963,10 +979,10 @@ if pagina == "📊 Fase 4 - Indicadores":
 
                 oee = disponibilidad * rendimiento * utilizacion
 
-                oee_data.setdefault(muelle,{})[(fecha_str,"Disponibilidad")] = disponibilidad
-                oee_data.setdefault(muelle,{})[(fecha_str,"Rendimiento")] = rendimiento
-                oee_data.setdefault(muelle,{})[(fecha_str,"Utilización")] = utilizacion
-                oee_data.setdefault(muelle,{})[(fecha_str,"OEE")] = oee
+                oee_data.setdefault(nombre_linea,{})[(fecha_str,"Disponibilidad")] = disponibilidad
+                oee_data.setdefault(nombre_linea,{})[(fecha_str,"Rendimiento")] = rendimiento
+                oee_data.setdefault(nombre_linea,{})[(fecha_str,"Utilización")] = utilizacion
+                oee_data.setdefault(nombre_linea,{})[(fecha_str,"OEE")] = oee
 
         df_oee = pd.DataFrame(oee_data).T
 
@@ -994,6 +1010,13 @@ if pagina == "📊 Fase 4 - Indicadores":
         styled_oee = df_oee.style.format("{:.1%}").applymap(color_oee)
 
         st.dataframe(styled_oee, use_container_width=True)
+
+        # ================= HORA FIN OPERACIÓN =================
+        st.markdown("## 🕓 Hora de Finalización de Operación por Día")
+
+        df_fin = pd.DataFrame(resumen_fin_operacion).T
+
+        st.dataframe(df_fin, use_container_width=True)
         # ================= EXPORTAR =================
         df_export=df.copy()
         df_export.to_excel("reporte_operacion.xlsx")
