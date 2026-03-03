@@ -28,95 +28,57 @@ CATALOGO = {
     "TIERRA": {"vh": "TRACTOCAMION-B", "min": 120},
 }
 
-# ================= PERSISTENCIA (COMPLETA + FINALIZACIONES) =================
+# ================= PERSISTENCIA =================
 DATA_FILE = "simulador_data.json"
 
 def serializar():
-    """
-    Convierte el estado a un dict 100% JSON-serializable.
-    - time() -> "HH:MM:SS"
-    - finalizaciones ya viene como strings/números
-    """
     return {
-        # (Opcional pero recomendado) para que también se guarden listados/pendientes
-        "necesidades": st.session_state.get("necesidades", []),
-        "no_programadas": st.session_state.get("no_programadas", []),
-        "ejecutados": st.session_state.get("ejecutados", []),
-
         "confirmadas": [
             {**c, "inicio": str(c["inicio"]), "fin": str(c["fin"])}
-            for c in st.session_state.get("confirmadas", [])
+            for c in st.session_state.confirmadas
         ],
         "bloqueos": [
             {**b, "inicio": str(b["inicio"]), "fin": str(b["fin"])}
-            for b in st.session_state.get("bloqueos", [])
+            for b in st.session_state.bloqueos
         ],
         "franjas": [
             {**f, "inicio": str(f["inicio"]), "fin": str(f["fin"])}
-            for f in st.session_state.get("franjas", [])
-        ],
-
-        # ✅ NUEVO: Finalizaciones operativas (histórico)
-        # Estructura:
-        # { "2026-03-01": {"Final Teórico":"18:00","Final Real":"18:20","Desviación (min)":20.0,"Desviación (h)":0.33}, ... }
-        "finalizaciones": st.session_state.get("finalizaciones", {})
+            for f in st.session_state.franjas
+        ]
     }
 
 def deserializar(data):
-    """
-    Restaura el estado desde el JSON.
-    Convierte campos "inicio"/"fin" de string -> datetime.time
-    """
-    st.session_state.necesidades = data.get("necesidades", [])
-    st.session_state.no_programadas = data.get("no_programadas", [])
-    st.session_state.ejecutados = data.get("ejecutados", [])
-
     st.session_state.confirmadas = [
-        {
-            **c,
-            "inicio": datetime.strptime(c["inicio"], "%H:%M:%S").time(),
-            "fin": datetime.strptime(c["fin"], "%H:%M:%S").time(),
-        }
+        {**c,
+         "inicio": datetime.strptime(c["inicio"], "%H:%M:%S").time(),
+         "fin": datetime.strptime(c["fin"], "%H:%M:%S").time()}
         for c in data.get("confirmadas", [])
     ]
-
     st.session_state.bloqueos = [
-        {
-            **b,
-            "inicio": datetime.strptime(b["inicio"], "%H:%M:%S").time(),
-            "fin": datetime.strptime(b["fin"], "%H:%M:%S").time(),
-        }
+        {**b,
+         "inicio": datetime.strptime(b["inicio"], "%H:%M:%S").time(),
+         "fin": datetime.strptime(b["fin"], "%H:%M:%S").time()}
         for b in data.get("bloqueos", [])
     ]
-
     st.session_state.franjas = [
-        {
-            **f,
-            "inicio": datetime.strptime(f["inicio"], "%H:%M:%S").time(),
-            "fin": datetime.strptime(f["fin"], "%H:%M:%S").time(),
-        }
+        {**f,
+         "inicio": datetime.strptime(f["inicio"], "%H:%M:%S").time(),
+         "fin": datetime.strptime(f["fin"], "%H:%M:%S").time()}
         for f in data.get("franjas", [])
     ]
 
-    # ✅ NUEVO: cargar finalizaciones (ya viene listo)
-    st.session_state.finalizaciones = data.get("finalizaciones", {})
-
 def guardar_datos():
-    with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(serializar(), f, ensure_ascii=False, indent=2)
+    with open(DATA_FILE, "w") as f:
+        json.dump(serializar(), f)
     st.success("Datos guardados correctamente")
 
 def cargar_datos():
     if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, "r", encoding="utf-8") as f:
+        with open(DATA_FILE, "r") as f:
             data = json.load(f)
-        deserializar(data)
+            deserializar(data)
 
 def reset_total():
-    """
-    Borra TODO el estado + archivo.
-    OJO: finalizaciones es dict, lo demás listas.
-    """
     for k in [
         "necesidades",
         "confirmadas",
@@ -126,13 +88,10 @@ def reset_total():
         "ejecutados"
     ]:
         st.session_state[k] = []
-
-    st.session_state["finalizaciones"] = {}
-
     if os.path.exists(DATA_FILE):
         os.remove(DATA_FILE)
-
     st.success("Sistema reiniciado completamente")
+
 # ================= SESSION =================
 for k in [
     "necesidades",
@@ -141,11 +100,10 @@ for k in [
     "bloqueos",
     "franjas",
     "franjas_inhabilitadas",
-    "ejecutados",
-    "finalizaciones"
+    "ejecutados"
 ]:
     if k not in st.session_state:
-        st.session_state[k] = {} if k == "finalizaciones" else []
+        st.session_state[k] = []
 
 cargar_datos()
 
@@ -781,6 +739,7 @@ if pagina == "📊 Fase 4 - Indicadores":
     # 🔹 Todo el bloque del reporte va dentro de esta condición
     if st.session_state.reporte_generado:
 
+
         from datetime import datetime, time
         import pandas as pd
         import plotly.express as px
@@ -789,11 +748,6 @@ if pagina == "📊 Fase 4 - Indicadores":
         JORNADA_FIN = time(22,0)
 
         fechas = sorted(list(set(c["fecha"] for c in st.session_state.confirmadas)))
-
-        # ✅ GUARD: si no hay confirmadas, no hay reporte
-        if not fechas:
-            st.info("No hay citas confirmadas para generar indicadores.")
-            st.stop()
 
         data = {}
 
@@ -864,13 +818,7 @@ if pagina == "📊 Fase 4 - Indicadores":
                 (fecha,"% Util")
             ]
 
-        # ✅ si faltan columnas por alguna razón, reindexa sin romper
-        df = df.reindex(columns=columnas_ordenadas)
-
-        # ✅ GUARD: df sin columnas
-        if df.empty or len(df.columns) == 0:
-            st.info("No hay datos suficientes para calcular el reporte (df vacío).")
-            st.stop()
+        df = df[columnas_ordenadas]
 
         # ================= TOTAL =================
         fila_total = {}
@@ -885,12 +833,9 @@ if pagina == "📊 Fase 4 - Indicadores":
         # ================= ALERTAS =================
         alertas = []
         for fecha in fechas:
-            try:
-                util_m2 = df.loc["Muelle 2"][(fecha,"% Util")]
-                if util_m2 >= 0.9:
-                    alertas.append(f"🚨 {fecha} saturación en Muelle 2")
-            except KeyError:
-                pass
+            util_m2 = df.loc["Muelle 2"][(fecha,"% Util")]
+            if util_m2 >= 0.9:
+                alertas.append(f"🚨 {fecha} saturación en Muelle 2")
 
         if alertas:
             st.error(" | ".join(alertas))
@@ -934,9 +879,9 @@ if pagina == "📊 Fase 4 - Indicadores":
 
             for fecha in fechas:
                 fechas_plot.append(fecha)
-                util_plot.append(df_plot.loc[muelle][(fecha,"% Util")] if (fecha,"% Util") in df_plot.columns else None)
-                op_plot.append(df_plot.loc[muelle][(fecha,"Tiempo Op")] if (fecha,"Tiempo Op") in df_plot.columns else None)
-                oc_plot.append(df_plot.loc[muelle][(fecha,"Tiempo Oc")] if (fecha,"Tiempo Oc") in df_plot.columns else None)
+                util_plot.append(df_plot.loc[muelle][(fecha,"% Util")])
+                op_plot.append(df_plot.loc[muelle][(fecha,"Tiempo Op")])
+                oc_plot.append(df_plot.loc[muelle][(fecha,"Tiempo Oc")])
 
             fig_util = px.line(
                 x=fechas_plot,
@@ -1056,7 +1001,7 @@ if pagina == "📊 Fase 4 - Indicadores":
                 (fecha,"OEE")
             ]
 
-        df_oee = df_oee.reindex(columns=col_ord)
+        df_oee = df_oee[col_ord]
 
         def color_oee(v):
             if isinstance(v,(int,float)):
@@ -1072,128 +1017,125 @@ if pagina == "📊 Fase 4 - Indicadores":
 
         st.dataframe(styled_oee, use_container_width=True)
 
-        # ================= FINALIZACIÓN OPERATIVA (POR DÍA + GUARDADO + HISTÓRICO + PERSISTENCIA) =================
+        # ================= FINALIZACIÓN OPERATIVA (GUARDADO + HISTÓRICO) =================
         st.divider()
         st.subheader("🕓 Finalización Operativa Diaria")
 
-        # Asegurar dict
+        # 🔹 Inicializar almacenamiento si no existe
         if "finalizaciones" not in st.session_state:
             st.session_state.finalizaciones = {}
 
-        # Si no hay fechas, no hay nada que registrar
-        if not fechas:
-            st.info("No hay días con operación aún.")
+        # 🔹 Selector de fecha
+        fecha_sel = st.selectbox(
+            "Seleccionar fecha",
+            fechas
+        )
+
+        fecha_dt = datetime.strptime(fecha_sel,"%Y-%m-%d")
+
+        citas_dia = [
+            c for c in st.session_state.confirmadas
+            if c["fecha"] == fecha_sel
+        ]
+
+        if citas_dia:
+            hora_teorica = max(c["fin"] for c in citas_dia)
+            hora_teorica_str = hora_teorica.strftime("%H:%M")
         else:
-            # ---------- Seleccionar día ----------
-            fecha_sel = st.selectbox("Selecciona el día a registrar", fechas, key="fecha_sel_final")
-            fecha_dt = datetime.strptime(fecha_sel, "%Y-%m-%d")
+            hora_teorica = None
+            hora_teorica_str = "Sin operación"
 
-            # ---------- Calcular Final Teórico del día ----------
-            citas_dia = [c for c in st.session_state.confirmadas if c["fecha"] == fecha_sel]
+        # ================= MOSTRAR FINAL TEÓRICO =================
+        st.metric("Final Teórico", hora_teorica_str)
 
-            if citas_dia:
-                hora_teorica = max(c["fin"] for c in citas_dia)  # time()
-                teorico_str = hora_teorica.strftime("%H:%M")
-            else:
-                hora_teorica = None
-                teorico_str = "Sin operación"
+        # ================= FORMULARIO (EVITA RELOAD AUTOMÁTICO) =================
+        with st.form(key=f"form_finalizacion_{fecha_sel}"):
 
-            st.metric("Final Teórico (Simulado)", teorico_str)
-
-            # ---------- Cargar Real previo (si existe) ----------
-            real_prev_str = st.session_state.finalizaciones.get(fecha_sel, {}).get("Final Real", "")
-            real_prev_time = None
-            if real_prev_str:
-                try:
-                    real_prev_time = datetime.strptime(real_prev_str, "%H:%M").time()
-                except:
-                    real_prev_time = None
-
-            # ---------- Form para evitar recargas raras ----------
-            with st.form(key=f"form_final_{fecha_sel}"):
-                hora_real = st.time_input(
-                    "Final Real (lo escribes tú)",
-                    value=real_prev_time if real_prev_time else time(18, 0),
-                    key=f"hora_real_{fecha_sel}"
-                )
-
-                btn_guardar = st.form_submit_button("💾 Guardar")
-
-                if btn_guardar:
-                    if not hora_teorica:
-                        st.warning("Ese día está en 'Sin operación'. No se puede guardar final real.")
-                    else:
-                        hora_teorica_dt = datetime.combine(fecha_dt, hora_teorica)
-                        hora_real_dt = datetime.combine(fecha_dt, hora_real)
-
-                        desviacion_min = (hora_real_dt - hora_teorica_dt).total_seconds() / 60
-                        desviacion_h = desviacion_min / 60
-
-                        st.session_state.finalizaciones[fecha_sel] = {
-                            "Final Teórico": teorico_str,
-                            "Final Real": hora_real.strftime("%H:%M"),
-                            "Desviación (min)": round(desviacion_min, 1),
-                            "Desviación (h)": round(desviacion_h, 2),
-                        }
-
-                        # ✅ Persistir en JSON
-                        guardar_datos()
-                        st.success("Guardado y persistido ✅")
-                        st.rerun()
-
-            # ---------- (OCULTO) Resultado del día seleccionado ----------
-            ver_detalle = st.checkbox("Ver detalle del día seleccionado", value=False)
-
-            if ver_detalle and (fecha_sel in st.session_state.finalizaciones):
-                row = st.session_state.finalizaciones[fecha_sel]
-                df_dia = pd.DataFrame([{
-                    "Fecha": fecha_sel,
-                    "Final Teórico": row.get("Final Teórico", ""),
-                    "Final Real": row.get("Final Real", ""),
-                    "Δ (min)": row.get("Desviación (min)", ""),
-                    "Δ (h)": row.get("Desviación (h)", "")
-                }])
-                st.dataframe(df_dia, use_container_width=True)
-
-            # ---------- Histórico (SIEMPRE visible si hay registros) ----------
-            if st.session_state.finalizaciones:
-                st.markdown("### 📊 Histórico Finalización Operativa")
-
-                df_hist = pd.DataFrame(st.session_state.finalizaciones).T.sort_index()
-
-                cols = ["Final Teórico", "Final Real", "Desviación (min)", "Desviación (h)"]
-                df_hist = df_hist[[c for c in cols if c in df_hist.columns]]
-
-                def color_hist(v):
-                    if isinstance(v, (int, float)):
-                        if v <= 0:
-                            return "background-color:#c6efce"   # 🟢
-                        elif v <= 60:
-                            return "background-color:#fff2cc"   # 🟡
-                        else:
-                            return "background-color:#ffc7ce"   # 🔴
-                    return ""
-
-                if "Desviación (min)" in df_hist.columns:
-                    st.dataframe(df_hist.style.applymap(color_hist, subset=["Desviación (min)"]), use_container_width=True)
-                else:
-                    st.dataframe(df_hist, use_container_width=True)
-
-            # ================= EXPORTAR (SIEMPRE visible) =================
-            df_export = df.copy()
-
-            df_final_export = (
-                pd.DataFrame(st.session_state.finalizaciones).T.sort_index()
-                if st.session_state.get("finalizaciones") else pd.DataFrame()
+            hora_real = st.time_input(
+                "Final Real",
+                key=f"hora_real_{fecha_sel}"
             )
 
-            with pd.ExcelWriter("reporte_operacion.xlsx", engine="openpyxl") as writer:
-                df_export.to_excel(writer, sheet_name="Indicadores")
-                df_final_export.to_excel(writer, sheet_name="Finalizacion")
+            guardar = st.form_submit_button("💾 Guardar")
 
-            with open("reporte_operacion.xlsx", "rb") as f:
-                st.download_button(
-                    "📥 Descargar Excel",
-                    data=f,
-                    file_name="reporte_operacion.xlsx"
-                )
+            if guardar and hora_teorica:
+
+                hora_teorica_dt = datetime.combine(fecha_dt,hora_teorica)
+                hora_real_dt = datetime.combine(fecha_dt,hora_real)
+
+                desviacion_min = (
+                    hora_real_dt - hora_teorica_dt
+                ).total_seconds()/60
+
+                st.session_state.finalizaciones[fecha_sel] = {
+                    "Final Teórico": hora_teorica_str,
+                    "Final Real": hora_real.strftime("%H:%M"),
+                    "Desviación (min)": round(desviacion_min,1)
+                }
+
+                st.success("Registro guardado correctamente ✅")
+
+        # ================= MOSTRAR INDICADOR SOLO SI YA EXISTE REGISTRO =================
+        if fecha_sel in st.session_state.finalizaciones:
+
+            desviacion_min = st.session_state.finalizaciones[fecha_sel]["Desviación (min)"]
+
+            if desviacion_min <= 0:
+                color = "#d4edda"
+                texto = "🟢 Operación dentro o mejor que lo simulado"
+            elif desviacion_min <= 60:
+                color = "#fff3cd"
+                texto = "🟡 Ligera desviación operacional"
+            else:
+                color = "#f8d7da"
+                texto = "🔴 Desviación crítica operativa"
+
+            st.markdown(
+                f"""
+                <div style="
+                    background-color:{color};
+                    padding:15px;
+                    border-radius:10px;
+                    font-weight:bold;
+                    text-align:center;
+                ">
+                    {texto}
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+        # ================= TABLA HISTÓRICA =================
+        if st.session_state.finalizaciones:
+
+            st.markdown("### 📊 Histórico Finalización Operativa")
+
+            df_final = pd.DataFrame(st.session_state.finalizaciones).T
+            df_final = df_final.sort_index()
+
+            def color_hist(v):
+                if isinstance(v,(int,float)):
+                    if v <= 0:
+                        return "background-color:#c6efce"
+                    elif v <= 60:
+                        return "background-color:#fff2cc"
+                    else:
+                        return "background-color:#ffc7ce"
+                return ""
+
+            styled_hist = (
+                df_final.style
+                .applymap(color_hist, subset=["Desviación (min)"])
+            )
+
+            st.dataframe(styled_hist, use_container_width=True)
+        # ================= EXPORTAR =================
+        df_export=df.copy()
+        df_export.to_excel("reporte_operacion.xlsx")
+
+        with open("reporte_operacion.xlsx","rb") as f:
+            st.download_button(
+                "📥 Descargar Excel",
+                data=f,
+                file_name="reporte_operacion.xlsx"
+            )
