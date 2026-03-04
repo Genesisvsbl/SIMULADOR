@@ -128,42 +128,95 @@ if pagina == "📋 Fase 1 - Listado":
 
     st.markdown("### Seleccionar cantidades a agendar")
 
-    for material, datos in CATALOGO.items():
+    materiales = list(CATALOGO.keys())
 
-        col1, col2, col3 = st.columns([2,1,1])
+    # Dividir en 2 columnas (7 y 7)
+    col_izq, col_der = st.columns(2)
 
-        col1.write(f"**{material}**")
+    mitad = len(materiales) // 2
 
-        cantidad = col2.number_input(
-            "Cantidad",
-            min_value=0,
-            step=1,
-            key=f"cant_{material}"
+    def muelle_por_material(mat):
+        if mat == "LATA":
+            return "Muelle 2"
+        return "Muelle 1"
+
+    # ---------------- IZQUIERDA ----------------
+    with col_izq:
+        for material in materiales[:mitad]:
+
+            col1, col2, col3 = st.columns([2,1,1])
+
+            col1.write(f"**{material}**")
+
+            cantidad = col2.number_input(
+                "Cant",
+                min_value=0,
+                step=1,
+                key=f"cant_{material}"
+            )
+
+            if col3.button("Agregar", key=f"add_{material}"):
+
+                if cantidad > 0:
+
+                    for _ in range(int(cantidad)):
+                        st.session_state.necesidades.append({
+                            "fecha": str(fecha),
+                            "material": material,
+                            "vh": CATALOGO[material]["vh"],
+                            "duracion": CATALOGO[material]["min"],
+                            "muelle": muelle_por_material(material)
+                        })
+
+                    st.success(f"{cantidad} unidades de {material} agregadas")
+                else:
+                    st.warning("Ingrese cantidad mayor a 0")
+
+    # ---------------- DERECHA ----------------
+    with col_der:
+        for material in materiales[mitad:]:
+
+            col1, col2, col3 = st.columns([2,1,1])
+
+            col1.write(f"**{material}**")
+
+            cantidad = col2.number_input(
+                "Cant",
+                min_value=0,
+                step=1,
+                key=f"cant_{material}"
+            )
+
+            if col3.button("Agregar", key=f"add_{material}"):
+
+                if cantidad > 0:
+
+                    for _ in range(int(cantidad)):
+                        st.session_state.necesidades.append({
+                            "fecha": str(fecha),
+                            "material": material,
+                            "vh": CATALOGO[material]["vh"],
+                            "duracion": CATALOGO[material]["min"],
+                            "muelle": muelle_por_material(material)
+                        })
+
+                    st.success(f"{cantidad} unidades de {material} agregadas")
+                else:
+                    st.warning("Ingrese cantidad mayor a 0")
+
+    # ================= TABLA FINAL =================
+    st.divider()
+
+    if st.session_state.necesidades:
+
+        st.dataframe(
+            pd.DataFrame(st.session_state.necesidades),
+            use_container_width=True
         )
 
-        if col3.button("Agregar", key=f"add_{material}"):
-
-            if cantidad > 0:
-
-                def muelle_por_material(mat):
-                    if mat == "LATA":
-                        return "Muelle 2"
-                    return "Muelle 1"
-
-                for i in range(int(cantidad)):
-
-                    st.session_state.necesidades.append({
-                        "fecha": str(fecha),
-                        "material": material,
-                        "vh": datos["vh"],
-                        "duracion": datos["min"],
-                        "muelle": muelle_por_material(material)
-                    })
-
-                st.success(f"{cantidad} unidades de {material} agregadas")
-            else:
-                st.warning("Ingrese una cantidad mayor a 0")
-
+        if st.button("Limpiar listado"):
+            st.session_state.necesidades = []
+            st.success("Listado limpiado")
 # ================= FASE 2 =================
 if pagina == "🛠 Fase 2 - Configuración":
 
