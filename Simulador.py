@@ -17,7 +17,7 @@ CATALOGO = {
     "AZUCAR": {"vh": "TRACTOCAMION-D", "min": 200},
     "PREFORMA": {"vh": "TRACTOCAMION-B", "min": 120},
     "TAPA PET": {"vh": "TRACTOCAMION-B", "min": 120},
-    "SQ ECOLAB": {"vh": "SENCILLO-A", "min": 80},
+    "QUIMICOS": {"vh": "SENCILLO-A", "min": 80},
     "ETIQUETA IGL": {"vh": "TRACTOCAMION-C", "min": 150},
     "TAPA CORONA": {"vh": "TRACTOCAMION-B", "min": 120},
     "PLASTICO": {"vh": "SENCILLO-A", "min": 80},
@@ -121,31 +121,48 @@ if st.sidebar.button("🗑 Resetear TODO"):
 
 # ================= FASE 1 =================
 if pagina == "📋 Fase 1 - Listado":
+
     st.title("Listado de Necesidades")
 
-    c1, c2 = st.columns(2)
-    fecha = c1.date_input("Fecha")
-    material = c2.selectbox("Material", list(CATALOGO.keys()))
+    fecha = st.date_input("Fecha")
 
-    def muelle_por_material(mat):
-        if mat == "LATA":
-            return "Muelle 2"
-        return "Muelle 1"
+    st.markdown("### Seleccionar cantidades a agendar")
 
-    if st.button("Agregar"):
-        st.session_state.necesidades.append({
-            "fecha": str(fecha),
-            "material": material,
-            "vh": CATALOGO[material]["vh"],
-            "duracion": CATALOGO[material]["min"],
-            "muelle": muelle_por_material(material)
-        })
-        st.success("Necesidad agregada")
+    for material, datos in CATALOGO.items():
 
-    if st.session_state.necesidades:
-        st.dataframe(pd.DataFrame(st.session_state.necesidades), use_container_width=True)
-        if st.button("Limpiar listado"):
-            st.session_state.necesidades = []
+        col1, col2, col3 = st.columns([2,1,1])
+
+        col1.write(f"**{material}**")
+
+        cantidad = col2.number_input(
+            "Cantidad",
+            min_value=0,
+            step=1,
+            key=f"cant_{material}"
+        )
+
+        if col3.button("Agregar", key=f"add_{material}"):
+
+            if cantidad > 0:
+
+                def muelle_por_material(mat):
+                    if mat == "LATA":
+                        return "Muelle 2"
+                    return "Muelle 1"
+
+                for i in range(int(cantidad)):
+
+                    st.session_state.necesidades.append({
+                        "fecha": str(fecha),
+                        "material": material,
+                        "vh": datos["vh"],
+                        "duracion": datos["min"],
+                        "muelle": muelle_por_material(material)
+                    })
+
+                st.success(f"{cantidad} unidades de {material} agregadas")
+            else:
+                st.warning("Ingrese una cantidad mayor a 0")
 
 # ================= FASE 2 =================
 if pagina == "🛠 Fase 2 - Configuración":
