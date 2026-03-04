@@ -124,17 +124,21 @@ if pagina == "📋 Fase 1 - Listado":
 
     st.title("Listado de Necesidades")
 
+    if "necesidades" not in st.session_state:
+        st.session_state.necesidades = []
+
     fecha = st.date_input("Fecha")
 
     st.markdown("### Seleccionar cantidades a agendar")
 
     materiales = list(CATALOGO.keys())
 
-    # Dividir en 2 columnas (7 y 7)
     col_izq, col_der = st.columns(2)
-
     mitad = len(materiales) // 2
 
+    cantidades = {}
+
+    # 🔹 Función muelle
     def muelle_por_material(mat):
         if mat == "LATA":
             return "Muelle 2"
@@ -143,68 +147,55 @@ if pagina == "📋 Fase 1 - Listado":
     # ---------------- IZQUIERDA ----------------
     with col_izq:
         for material in materiales[:mitad]:
-
-            col1, col2, col3 = st.columns([2,1,1])
-
+            col1, col2 = st.columns([2,1])
             col1.write(f"**{material}**")
-
-            cantidad = col2.number_input(
+            cantidades[material] = col2.number_input(
                 "Cant",
                 min_value=0,
                 step=1,
                 key=f"cant_{material}"
             )
-
-            if col3.button("Agregar", key=f"add_{material}"):
-
-                if cantidad > 0:
-
-                    for _ in range(int(cantidad)):
-                        st.session_state.necesidades.append({
-                            "fecha": str(fecha),
-                            "material": material,
-                            "vh": CATALOGO[material]["vh"],
-                            "duracion": CATALOGO[material]["min"],
-                            "muelle": muelle_por_material(material)
-                        })
-
-                    st.success(f"{cantidad} unidades de {material} agregadas")
-                else:
-                    st.warning("Ingrese cantidad mayor a 0")
 
     # ---------------- DERECHA ----------------
     with col_der:
         for material in materiales[mitad:]:
-
-            col1, col2, col3 = st.columns([2,1,1])
-
+            col1, col2 = st.columns([2,1])
             col1.write(f"**{material}**")
-
-            cantidad = col2.number_input(
+            cantidades[material] = col2.number_input(
                 "Cant",
                 min_value=0,
                 step=1,
                 key=f"cant_{material}"
             )
 
-            if col3.button("Agregar", key=f"add_{material}"):
+    # 🔥 BOTÓN ÚNICO
+    st.divider()
 
-                if cantidad > 0:
+    if st.button("🚀 Agregar Todo"):
 
-                    for _ in range(int(cantidad)):
-                        st.session_state.necesidades.append({
-                            "fecha": str(fecha),
-                            "material": material,
-                            "vh": CATALOGO[material]["vh"],
-                            "duracion": CATALOGO[material]["min"],
-                            "muelle": muelle_por_material(material)
-                        })
+        total_agregado = 0
 
-                    st.success(f"{cantidad} unidades de {material} agregadas")
-                else:
-                    st.warning("Ingrese cantidad mayor a 0")
+        for material, cantidad in cantidades.items():
 
-    # ================= TABLA FINAL =================
+            if cantidad > 0:
+
+                for _ in range(int(cantidad)):
+                    st.session_state.necesidades.append({
+                        "fecha": str(fecha),
+                        "material": material,
+                        "vh": CATALOGO[material]["vh"],
+                        "duracion": CATALOGO[material]["min"],
+                        "muelle": muelle_por_material(material)
+                    })
+
+                total_agregado += cantidad
+
+        if total_agregado > 0:
+            st.success(f"Se agregaron {total_agregado} necesidades correctamente ✅")
+        else:
+            st.warning("No se ingresaron cantidades")
+
+    # ================= TABLA =================
     st.divider()
 
     if st.session_state.necesidades:
@@ -214,7 +205,7 @@ if pagina == "📋 Fase 1 - Listado":
             use_container_width=True
         )
 
-        if st.button("Limpiar listado"):
+        if st.button("🗑 Limpiar listado"):
             st.session_state.necesidades = []
             st.success("Listado limpiado")
 # ================= FASE 2 =================
