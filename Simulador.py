@@ -8,6 +8,86 @@ import uuid   # 👈 AGREGA ESTA LINEA
 
 st.set_page_config(layout="wide")
 
+# ================= INTERFAZ PROFESIONAL =================
+st.markdown("""
+<style>
+
+/* ===== FONDO GENERAL ===== */
+html, body, [class*="css"]  {
+    background-color: #0f172a;
+    color: white;
+}
+
+/* ===== CONTENEDOR PRINCIPAL ===== */
+.main .block-container{
+    padding-top: 2rem;
+    padding-bottom: 2rem;
+}
+
+/* ===== SIDEBAR ===== */
+section[data-testid="stSidebar"]{
+    background-color:#020617;
+    border-right:1px solid #1e293b;
+}
+
+/* ===== TITULOS ===== */
+h1{
+    font-size:36px;
+    font-weight:700;
+}
+
+h2{
+    font-size:28px;
+    font-weight:600;
+}
+
+/* ===== BOTONES ===== */
+.stButton>button{
+    background: linear-gradient(90deg,#2563eb,#06b6d4);
+    color:white;
+    border-radius:10px;
+    border:none;
+    font-weight:600;
+    padding:10px 18px;
+    transition:0.3s;
+}
+
+.stButton>button:hover{
+    transform:scale(1.05);
+    box-shadow:0px 5px 25px rgba(0,0,0,0.4);
+}
+
+/* ===== INPUTS ===== */
+.stNumberInput input{
+    border-radius:8px;
+}
+
+.stTextInput input{
+    border-radius:8px;
+}
+
+.stSelectbox div{
+    border-radius:8px;
+}
+
+/* ===== DATAFRAMES ===== */
+[data-testid="stDataFrame"]{
+    border-radius:12px;
+    overflow:hidden;
+}
+
+/* ===== ALERTAS ===== */
+.stAlert{
+    border-radius:10px;
+}
+
+/* ===== DIVIDER ===== */
+hr{
+    border:1px solid #334155;
+}
+
+</style>
+""", unsafe_allow_html=True)
 
 
 # ================= CONFIG =================
