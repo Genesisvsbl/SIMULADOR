@@ -8,87 +8,79 @@ import uuid   # 👈 AGREGA ESTA LINEA
 
 st.set_page_config(layout="wide")
 
-# ================= INTERFAZ PROFESIONAL =================
+# ================= INTERFAZ WMS =================
 st.markdown("""
 <style>
 
-/* ===== FONDO GENERAL ===== */
-html, body, [class*="css"]  {
-    background-color: #0f172a;
-    color: white;
+/* FONDO GENERAL */
+.stApp{
+    background-color:#f1f5f9;
 }
 
-/* ===== CONTENEDOR PRINCIPAL ===== */
-.main .block-container{
-    padding-top: 2rem;
-    padding-bottom: 2rem;
-}
-
-/* ===== SIDEBAR ===== */
-section[data-testid="stSidebar"]{
-    background-color:#020617;
-    border-right:1px solid #1e293b;
-}
-
-/* ===== TITULOS ===== */
-h1{
-    font-size:36px;
+/* HEADER SUPERIOR */
+.header{
+    background:white;
+    padding:15px 30px;
+    border-bottom:1px solid #e5e7eb;
+    font-size:22px;
     font-weight:700;
+    color:#1e3a8a;
 }
 
-h2{
-    font-size:28px;
-    font-weight:600;
+/* SIDEBAR */
+section[data-testid="stSidebar"]{
+    background:#0f172a;
 }
 
-/* ===== BOTONES ===== */
-.stButton>button{
-    background: linear-gradient(90deg,#2563eb,#06b6d4);
+section[data-testid="stSidebar"] *{
     color:white;
-    border-radius:10px;
+}
+
+/* TARJETAS */
+.card{
+    background:white;
+    padding:25px;
+    border-radius:12px;
+    box-shadow:0 4px 10px rgba(0,0,0,0.05);
+    border:1px solid #e5e7eb;
+}
+
+/* BOTONES */
+.stButton>button{
+    background:#2563eb;
+    color:white;
+    border-radius:8px;
     border:none;
     font-weight:600;
-    padding:10px 18px;
-    transition:0.3s;
 }
 
 .stButton>button:hover{
-    transform:scale(1.05);
-    box-shadow:0px 5px 25px rgba(0,0,0,0.4);
+    background:#1d4ed8;
 }
 
-/* ===== INPUTS ===== */
-.stNumberInput input{
-    border-radius:8px;
-}
-
-.stTextInput input{
-    border-radius:8px;
-}
-
-.stSelectbox div{
-    border-radius:8px;
-}
-
-/* ===== DATAFRAMES ===== */
+/* TABLAS */
 [data-testid="stDataFrame"]{
-    border-radius:12px;
-    overflow:hidden;
-}
-
-/* ===== ALERTAS ===== */
-.stAlert{
     border-radius:10px;
+    border:1px solid #e5e7eb;
 }
 
-/* ===== DIVIDER ===== */
-hr{
-    border:1px solid #334155;
+/* INPUTS */
+input, textarea{
+    border-radius:6px !important;
+}
+
+/* TITULOS */
+h1{
+    color:#0f172a;
+    font-weight:800;
+}
+
+h2{
+    color:#1e293b;
 }
 
 </style>
 """, unsafe_allow_html=True)
-
 
 # ================= CONFIG =================
 MUELLES = ["Muelle 1", "Muelle 2", "Contingencia"]
