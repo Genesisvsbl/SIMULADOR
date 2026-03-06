@@ -8,6 +8,8 @@ import uuid   # 👈 AGREGA ESTA LINEA
 
 st.set_page_config(layout="wide")
 
+
+
 # ================= CONFIG =================
 MUELLES = ["Muelle 1", "Muelle 2", "Contingencia"]
 
