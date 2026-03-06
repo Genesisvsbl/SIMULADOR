@@ -48,21 +48,22 @@ h2,h3{
     box-shadow:0 2px 6px rgba(0,0,0,0.04);
 }
 
-/* ===== BOTONES ===== */
+/* BOTÓN PRINCIPAL */
 .stButton>button{
-    background-color:#2f80ed;
-    color:white;
+    background-color:#020046;   /* azul marino oscuro */
+    color:white;                /* texto blanco */
     border-radius:6px;
     border:none;
-    padding:8px 16px;
+    padding:8px 18px;
     font-weight:600;
     transition:all 0.2s ease;
 }
 
 /* HOVER */
 .stButton>button:hover{
-    background-color:#1c63c7;
-    box-shadow:0 3px 8px rgba(0,0,0,0.15);
+    background-color:#010033;   /* un poco más oscuro */
+    color:white;
+    box-shadow:0 3px 8px rgba(0,0,0,0.25);
 }
 
 /* ===== INPUTS ===== */
