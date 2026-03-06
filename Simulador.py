@@ -14,22 +14,22 @@ st.markdown("""
 
 /* FONDO GENERAL */
 .stApp{
-    background-color:#f1f5f9;
+    background-color:#f4f6f9;
 }
 
 /* HEADER SUPERIOR */
 .header{
     background:white;
-    padding:15px 30px;
+    padding:14px 25px;
     border-bottom:1px solid #e5e7eb;
-    font-size:22px;
+    font-size:20px;
     font-weight:700;
-    color:#1e3a8a;
+    color:#1f2937;
 }
 
 /* SIDEBAR */
 section[data-testid="stSidebar"]{
-    background:#0f172a;
+    background: linear-gradient(180deg,#1e5aa6,#2b6cb0);
 }
 
 section[data-testid="stSidebar"] *{
@@ -41,13 +41,13 @@ section[data-testid="stSidebar"] *{
     background:white;
     padding:25px;
     border-radius:12px;
-    box-shadow:0 4px 10px rgba(0,0,0,0.05);
     border:1px solid #e5e7eb;
+    box-shadow:0 2px 8px rgba(0,0,0,0.05);
 }
 
 /* BOTONES */
 .stButton>button{
-    background:#2563eb;
+    background:#2b6cb0;
     color:white;
     border-radius:8px;
     border:none;
@@ -55,7 +55,13 @@ section[data-testid="stSidebar"] *{
 }
 
 .stButton>button:hover{
-    background:#1d4ed8;
+    background:#1e4e8c;
+}
+
+/* INPUTS */
+input, textarea{
+    border-radius:6px !important;
+    border:1px solid #d1d5db !important;
 }
 
 /* TABLAS */
@@ -64,19 +70,14 @@ section[data-testid="stSidebar"] *{
     border:1px solid #e5e7eb;
 }
 
-/* INPUTS */
-input, textarea{
-    border-radius:6px !important;
-}
-
 /* TITULOS */
 h1{
-    color:#0f172a;
+    color:#1f2937;
     font-weight:800;
 }
 
 h2{
-    color:#1e293b;
+    color:#374151;
 }
 
 </style>
