@@ -84,6 +84,16 @@ label{
     color:#2c3e50;
 }
 
+/* FORZAR TEXTO BLANCO EN BOTONES DEL SIDEBAR */
+section[data-testid="stSidebar"] .stButton button {
+    color: white !important;
+}
+
+/* también para iconos dentro del botón */
+section[data-testid="stSidebar"] .stButton button p {
+    color: white !important;
+}
+
 </style>
 """, unsafe_allow_html=True)
 
