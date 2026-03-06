@@ -48,22 +48,19 @@ h2,h3{
     box-shadow:0 2px 6px rgba(0,0,0,0.04);
 }
 
-/* BOTÓN PRINCIPAL */
-.stButton>button{
-    background-color:#020046;   /* azul marino oscuro */
-    color:white;                /* texto blanco */
-    border-radius:6px;
-    border:none;
-    padding:8px 18px;
-    font-weight:600;
-    transition:all 0.2s ease;
+/* BOTONES LATERALES */
+section[data-testid="stSidebar"] .stButton button {
+    background-color: #00008B !important;   /* azul oscuro como el que enviaste */
+    color: white !important;                /* 👈 letra blanca */
+    border-radius: 8px;
+    border: none;
+    font-weight: 600;
 }
 
-/* HOVER */
-.stButton>button:hover{
-    background-color:#010033;   /* un poco más oscuro */
-    color:white;
-    box-shadow:0 3px 8px rgba(0,0,0,0.25);
+/* Hover */
+section[data-testid="stSidebar"] .stButton button:hover {
+    background-color: #000066 !important;
+    color: white !important;
 }
 
 /* ===== INPUTS ===== */
