@@ -12,37 +12,33 @@ st.set_page_config(layout="wide")
 st.markdown("""
 <style>
 
-/* FONDO GENERAL */
-.stApp{
-    background-color:#f4f6f9;
+/* FONDO GENERAL CLARO */
+.stApp {
+    background-color: #f5f7fb;
 }
 
-/* HEADER SUPERIOR */
-.header{
-    background:white;
-    padding:14px 25px;
-    border-bottom:1px solid #e5e7eb;
-    font-size:20px;
-    font-weight:700;
+/* SIDEBAR CLARO */
+section[data-testid="stSidebar"]{
+    background: #eef2f7;
+    border-right:1px solid #d6dde6;
+}
+
+/* TEXTO SIDEBAR */
+section[data-testid="stSidebar"] *{
     color:#1f2937;
 }
 
-/* SIDEBAR */
-section[data-testid="stSidebar"]{
-    background: linear-gradient(180deg,#1e5aa6,#2b6cb0);
+/* TITULOS */
+h1,h2,h3{
+    color:#1f2937;
 }
 
-section[data-testid="stSidebar"] *{
-    color:white;
-}
-
-/* TARJETAS */
-.card{
+/* TARJETAS BLANCAS */
+.block-container{
     background:white;
-    padding:25px;
+    padding:2rem;
     border-radius:12px;
     border:1px solid #e5e7eb;
-    box-shadow:0 2px 8px rgba(0,0,0,0.05);
 }
 
 /* BOTONES */
@@ -51,7 +47,6 @@ section[data-testid="stSidebar"] *{
     color:white;
     border-radius:8px;
     border:none;
-    font-weight:600;
 }
 
 .stButton>button:hover{
@@ -59,25 +54,14 @@ section[data-testid="stSidebar"] *{
 }
 
 /* INPUTS */
-input, textarea{
+input{
     border-radius:6px !important;
-    border:1px solid #d1d5db !important;
 }
 
 /* TABLAS */
 [data-testid="stDataFrame"]{
-    border-radius:10px;
     border:1px solid #e5e7eb;
-}
-
-/* TITULOS */
-h1{
-    color:#1f2937;
-    font-weight:800;
-}
-
-h2{
-    color:#374151;
+    border-radius:10px;
 }
 
 </style>
