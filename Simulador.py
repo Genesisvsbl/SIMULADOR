@@ -12,56 +12,75 @@ st.set_page_config(layout="wide")
 st.markdown("""
 <style>
 
-/* FONDO GENERAL CLARO */
+/* ===== FONDO GENERAL ===== */
 .stApp {
-    background-color: #f5f7fb;
+    background-color: #f1f3f6;
 }
 
-/* SIDEBAR CLARO */
+/* ===== SIDEBAR ===== */
 section[data-testid="stSidebar"]{
-    background: #eef2f7;
-    border-right:1px solid #d6dde6;
+    background: #ffffff;
+    border-right:1px solid #e1e6ef;
 }
 
 /* TEXTO SIDEBAR */
 section[data-testid="stSidebar"] *{
-    color:#1f2937;
+    color:#2c3e50;
+    font-weight:500;
 }
 
-/* TITULOS */
-h1,h2,h3{
-    color:#1f2937;
+/* ===== TITULOS ===== */
+h1{
+    color:#1f2d3d;
+    font-weight:700;
 }
 
-/* TARJETAS BLANCAS */
+h2,h3{
+    color:#34495e;
+}
+
+/* ===== CONTENEDOR PRINCIPAL ===== */
 .block-container{
     background:white;
     padding:2rem;
-    border-radius:12px;
-    border:1px solid #e5e7eb;
-}
-
-/* BOTONES */
-.stButton>button{
-    background:#2b6cb0;
-    color:white;
-    border-radius:8px;
-    border:none;
-}
-
-.stButton>button:hover{
-    background:#1e4e8c;
-}
-
-/* INPUTS */
-input{
-    border-radius:6px !important;
-}
-
-/* TABLAS */
-[data-testid="stDataFrame"]{
-    border:1px solid #e5e7eb;
     border-radius:10px;
+    border:1px solid #e6eaf0;
+    box-shadow:0 2px 6px rgba(0,0,0,0.04);
+}
+
+/* ===== BOTONES ===== */
+.stButton>button{
+    background-color:#2f80ed;
+    color:white;
+    border-radius:6px;
+    border:none;
+    padding:8px 16px;
+    font-weight:600;
+    transition:all 0.2s ease;
+}
+
+/* HOVER */
+.stButton>button:hover{
+    background-color:#1c63c7;
+    box-shadow:0 3px 8px rgba(0,0,0,0.15);
+}
+
+/* ===== INPUTS ===== */
+input, textarea{
+    border-radius:6px !important;
+    border:1px solid #d9e0ea !important;
+}
+
+/* ===== TABLAS ===== */
+[data-testid="stDataFrame"]{
+    border:1px solid #e4e9f2;
+    border-radius:8px;
+}
+
+/* ===== LABELS ===== */
+label{
+    font-weight:600;
+    color:#2c3e50;
 }
 
 </style>
